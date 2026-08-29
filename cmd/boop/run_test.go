@@ -27,11 +27,12 @@ func TestVersionFlag(t *testing.T) {
 	}
 }
 
+// Modes that are still stubs must say which milestone they belong to rather
+// than failing opaquely. --no-tui is deliberately absent: it is implemented.
 func TestUnimplementedModesReportTheirMilestone(t *testing.T) {
 	for _, tc := range []struct{ flag, want string }{
 		{"--gui", "milestone 13"},
 		{"--web", "milestone 9"},
-		{"--no-tui", "milestone 2"},
 	} {
 		var out, errOut bytes.Buffer
 		err := run([]string{tc.flag}, &out, &errOut)

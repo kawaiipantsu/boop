@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ type options struct {
 	// deliberately verbose and must never be needed for normal local work.
 	dangerouslyUnrestricted bool
 	showVersion             bool
+	verbose                 bool
 }
 
 // run parses arguments and dispatches to a startup mode.
@@ -63,6 +65,8 @@ func parse(args []string, stderr io.Writer) (options, error) {
 	fs.BoolVar(&opts.dangerouslyUnrestricted, "dangerously-unrestricted", false,
 		"skip all permission confirmation (not required for normal local development)")
 	fs.BoolVar(&opts.showVersion, "version", false, "print version and exit")
+	fs.BoolVar(&opts.verbose, "verbose", false, "report tool activity and timings on stderr")
+	fs.BoolVar(&opts.verbose, "v", false, "shorthand for --verbose")
 
 	fs.Usage = func() {
 		fmt.Fprint(stderr, usageText)
@@ -95,7 +99,7 @@ func dispatch(opts options, stdout, stderr io.Writer) error {
 	case opts.web:
 		return fmt.Errorf("WebUI is not implemented yet (milestone 9)")
 	case opts.noTUI:
-		return fmt.Errorf("plain CLI mode is not implemented yet (milestone 2)")
+		return runPlainCLI(context.Background(), opts, stdout, stderr)
 	default:
 		return fmt.Errorf("TUI is not implemented yet (milestone 3); try `boop version`")
 	}
