@@ -267,6 +267,11 @@ Every filesystem tool is confined to the workspace, enforced **after** symlink r
 
 </div>
 
+> [!TIP]
+> **Which model should you run?** See **[MODELS.md](MODELS.md)** — measured
+> tool-calling reliability, VRAM sizing, backend quirks, and why a
+> general-purpose 7B model fails a third of the time at agentic work.
+
 > [!NOTE]
 > **Capabilities are discovered, never assumed.** Ask a completion-only model for tools and Boop tells you the capability is
 > missing and which configured models have it — instead of an opaque `400`.
