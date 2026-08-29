@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 )
@@ -43,11 +44,52 @@ func TestUnimplementedModesReportTheirMilestone(t *testing.T) {
 	}
 }
 
-func TestBarePromptIsCapturedAsPositionalArg(t *testing.T) {
-	var out, errOut bytes.Buffer
-	// The TUI is not implemented, so this exercises parsing only.
-	err := run([]string{"fix the failing tests"}, &out, &errOut)
-	if err == nil || !strings.Contains(err.Error(), "TUI") {
-		t.Fatalf("run(prompt) = %v, want the TUI milestone error", err)
+func TestBarePromptJoinsAllArguments(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"single word", []string{"help"}, "help"},
+		{"unquoted sentence", []string{"serve", "this", "folder", "up", "via", "http"},
+			"serve this folder up via http"},
+		{"with punctuation", []string{"build", "me", "a", "website", "in", "html,css,js"},
+			"build me a website in html,css,js"},
+		{"with a path", []string{"i", "have", "added", "sdc", "device,", "create", "lvm",
+			"and", "mount", "on", "/mnt/storage"},
+			"i have added sdc device, create lvm and mount on /mnt/storage"},
+		{"flags then prompt", []string{"--mode", "auto", "fix", "the", "failing", "tests"},
+			"fix the failing tests"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parse(tc.args, io.Discard)
+			if err != nil {
+				t.Fatalf("parse(%q) = %v, want nil", tc.args, err)
+			}
+			if got.prompt != tc.want {
+				t.Errorf("prompt = %q, want %q", got.prompt, tc.want)
+			}
+		})
+	}
+}
+
+func TestPromptFlagAndBareArgsConflict(t *testing.T) {
+	_, err := parse([]string{"--prompt", "one", "and", "two"}, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "both") {
+		t.Fatalf("parse() = %v, want a conflict error", err)
+	}
+}
+
+func TestModeFlagIsParsedBeforeBarePrompt(t *testing.T) {
+	got, err := parse([]string{"--mode", "auto", "deploy", "the", "thing"}, io.Discard)
+	if err != nil {
+		t.Fatalf("parse() = %v, want nil", err)
+	}
+	if got.mode != "auto" {
+		t.Errorf("mode = %q, want %q", got.mode, "auto")
+	}
+	if got.prompt != "deploy the thing" {
+		t.Errorf("prompt = %q, want %q", got.prompt, "deploy the thing")
 	}
 }

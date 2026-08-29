@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/boop-dev/boop/internal/version"
 )
@@ -28,6 +29,24 @@ type options struct {
 
 // run parses arguments and dispatches to a startup mode.
 func run(args []string, stdout, stderr io.Writer) error {
+	// `boop version` is accepted as a subcommand alongside --version.
+	if len(args) > 0 && args[0] == "version" {
+		fmt.Fprintln(stdout, version.Get())
+		return nil
+	}
+	opts, err := parse(args, stderr)
+	if err != nil {
+		return err
+	}
+	if opts.showVersion {
+		fmt.Fprintln(stdout, version.Get())
+		return nil
+	}
+	return dispatch(opts, stdout, stderr)
+}
+
+// parse turns command-line arguments into options.
+func parse(args []string, stderr io.Writer) (options, error) {
 	var opts options
 	fs := flag.NewFlagSet("boop", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -46,27 +65,26 @@ func run(args []string, stdout, stderr io.Writer) error {
 	fs.BoolVar(&opts.showVersion, "version", false, "print version and exit")
 
 	fs.Usage = func() {
-		fmt.Fprintf(stderr, "boop — local AI client and agent runtime\n\nusage:\n  boop [flags] [prompt]\n  boop version\n\nflags:\n")
+		fmt.Fprint(stderr, usageText)
 		fs.PrintDefaults()
 	}
 
-	// `boop version` is accepted as a subcommand alongside --version.
-	if len(args) > 0 && args[0] == "version" {
-		fmt.Fprintln(stdout, version.Get())
-		return nil
-	}
 	if err := fs.Parse(args); err != nil {
-		return err
+		return opts, err
 	}
-	if opts.showVersion {
-		fmt.Fprintln(stdout, version.Get())
-		return nil
+	// Remaining arguments form a bare prompt, so an unquoted request works:
+	//   boop serve this folder up via http
+	// Flags are still honoured because flag parsing stops at the first
+	// non-flag argument:
+	//   boop --mode auto build me a static site
+	if rest := fs.Args(); len(rest) > 0 {
+		bare := strings.Join(rest, " ")
+		if opts.prompt != "" {
+			return opts, fmt.Errorf("prompt given both with --prompt and as arguments: %q and %q", opts.prompt, bare)
+		}
+		opts.prompt = bare
 	}
-	if opts.prompt == "" && fs.NArg() > 0 {
-		opts.prompt = fs.Arg(0)
-	}
-
-	return dispatch(opts, stdout, stderr)
+	return opts, nil
 }
 
 // dispatch selects the startup mode. Modes are wired up as their milestones land.
@@ -82,3 +100,21 @@ func dispatch(opts options, stdout, stderr io.Writer) error {
 		return fmt.Errorf("TUI is not implemented yet (milestone 3); try `boop version`")
 	}
 }
+
+// usageText documents invocation, including the bare-prompt form that lets a
+// request be typed without quoting.
+const usageText = `boop — local AI client and agent runtime
+
+usage:
+  boop                              start the TUI
+  boop <prompt...>                  submit a prompt, then continue interactively
+  boop --prompt "<text>"            same, when the text would confuse flag parsing
+  boop version                      print build metadata
+
+examples:
+  boop serve this folder up via http
+  boop build me a simple website in html, css and js about hacking
+  boop --mode auto fix the failing tests
+
+flags:
+`
