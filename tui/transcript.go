@@ -69,6 +69,9 @@ type Entry struct {
 	State ToolState
 	// Duration is how long a completed tool call took.
 	Duration time.Duration
+	// Outcome is the tool's own short summary of what it produced, such as
+	// "10 results" or "exit 0". Empty falls back to a bare ok/failed.
+	Outcome string
 	// At is when the entry was created.
 	At time.Time
 	// open marks a streaming assistant entry that later tokens append to.
@@ -192,11 +195,18 @@ func (t *Transcript) StartTool(tool, summary string) {
 // flight conceptually, but the loop runs them in order, so the newest running
 // entry for a name is always the one that just finished.
 func (t *Transcript) FinishTool(tool string, state ToolState, d time.Duration) bool {
+	return t.FinishToolWithOutcome(tool, state, d, "")
+}
+
+// FinishToolWithOutcome closes a running tool line and records what it
+// produced, so the transcript shows the result rather than only the timing.
+func (t *Transcript) FinishToolWithOutcome(tool string, state ToolState, d time.Duration, outcome string) bool {
 	for i := len(t.entries) - 1; i >= 0; i-- {
 		e := &t.entries[i]
 		if e.Kind == EntryTool && e.State == ToolRunning && (tool == "" || e.Tool == tool) {
 			e.State = state
 			e.Duration = d
+			e.Outcome = outcome
 			return true
 		}
 	}
@@ -323,6 +333,10 @@ func RenderEntry(e Entry, width int) []Line {
 }
 
 // toolHeadline formats the one-line summary of a tool call and its outcome.
+//
+// The outcome carries what the call actually produced — "10 results", "exit 0",
+// "42 lines" — because a bare tool name plus a duration tells a watching user
+// nothing about whether it worked.
 func toolHeadline(e Entry) string {
 	var b strings.Builder
 	b.WriteString(e.Tool)
@@ -334,13 +348,22 @@ func toolHeadline(e Entry) string {
 	case ToolRunning:
 		b.WriteString("  [running]")
 	case ToolOK:
-		b.WriteString("  [ok " + formatDuration(e.Duration) + "]")
+		b.WriteString("  [" + outcomeLabel(e, "ok") + "]")
 	case ToolFailed:
-		b.WriteString("  [failed " + formatDuration(e.Duration) + "]")
+		b.WriteString("  [" + outcomeLabel(e, "failed") + "]")
 	case ToolDenied:
 		b.WriteString("  [denied]")
 	}
 	return b.String()
+}
+
+// outcomeLabel renders the bracketed result, preferring the tool's own summary
+// over the bare verb when it supplied one.
+func outcomeLabel(e Entry, verb string) string {
+	if e.Outcome != "" {
+		return e.Outcome + " · " + formatDuration(e.Duration)
+	}
+	return verb + " " + formatDuration(e.Duration)
 }
 
 // formatDuration renders a duration compactly enough for a status suffix.

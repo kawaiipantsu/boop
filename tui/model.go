@@ -319,7 +319,7 @@ func (m *Model) applyEvents(events []uiEvent) {
 				state = ToolFailed
 				m.stats.ToolFailures++
 			}
-			m.transcript.FinishTool(ev.tool, state, ev.duration)
+			m.transcript.FinishToolWithOutcome(ev.tool, state, ev.duration, ev.text)
 			m.status = StatusThinking
 		case evCommandOutput:
 			m.transcript.Append(Entry{Kind: EntryOutput, Text: ev.text})

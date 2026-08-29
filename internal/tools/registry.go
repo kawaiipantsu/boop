@@ -46,7 +46,16 @@ type Result struct {
 	Content string `json:"content"`
 	// Data is the structured payload for UIs and persistence, such as a
 	// execution.RunResult. It is not sent to the model directly.
-	Data     any           `json:"data,omitempty"`
+	Data any `json:"data,omitempty"`
+	// Display is a short human summary of what the call actually did — "10
+	// results", "exit 0", "42 lines", "3 files changed". It is for frontends
+	// only and is never sent to the model, which reads Content.
+	//
+	// It exists because a bare tool name tells a watching user nothing: the
+	// difference between a search that found ten pages and one that found
+	// none is the whole outcome, and it should be visible without unfolding
+	// the result.
+	Display  string        `json:"display,omitempty"`
 	IsError  bool          `json:"is_error"`
 	Duration time.Duration `json:"duration"`
 }

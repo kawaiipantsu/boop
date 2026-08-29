@@ -140,11 +140,18 @@ func attachProgress(a *app.App, stderr io.Writer) {
 			}
 		case app.EventToolCompleted:
 			if m, ok := ev.Payload.(map[string]any); ok {
-				status := "ok"
+				// Prefer the tool's own summary of what it produced: "10
+				// results" says more than "ok".
+				status, _ := m["display"].(string)
 				if failed, _ := m["error"].(bool); failed {
 					status = "failed"
+					if d, _ := m["display"].(string); d != "" {
+						status = "failed · " + d
+					}
+				} else if status == "" {
+					status = "ok"
 				}
-				fmt.Fprintf(stderr, "  ← %v %s (%v)\n", m["tool"], status, m["duration"])
+				fmt.Fprintf(stderr, "  ← %v  %s (%v)\n", m["tool"], status, m["duration"])
 			}
 		}
 	}, app.EventToolRequested, app.EventToolCompleted)

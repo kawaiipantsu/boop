@@ -242,7 +242,8 @@ func (l *Loop) invoke(ctx context.Context, call tools.Call) tools.Result {
 		result.Duration = time.Since(started)
 	}
 	l.emit(EventToolCompleted, map[string]any{
-		"tool": call.Name, "error": result.IsError, "duration": result.Duration.String(),
+		"tool": call.Name, "error": result.IsError,
+		"duration": result.Duration.String(), "display": result.Display,
 	})
 	return result
 }

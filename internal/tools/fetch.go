@@ -149,6 +149,7 @@ func (t *FetchTool) Execute(ctx context.Context, call Call) (Result, error) {
 		return Result{
 			CallID: call.ID, Tool: call.Name, Data: data, Duration: time.Since(started),
 			IsError: err != nil,
+			Display: fetchOutcome(data),
 			Content: webRenderFetch(data, err),
 		}, nil
 	}
@@ -183,8 +184,25 @@ func (t *FetchTool) Execute(ctx context.Context, call Call) (Result, error) {
 	return Result{
 		CallID: call.ID, Tool: call.Name, Data: data, Duration: time.Since(started),
 		IsError: err != nil,
+		Display: fetchOutcome(data),
 		Content: webRenderFetch(data, err),
 	}, nil
+}
+
+// fetchOutcome summarises a fetch: status plus how much readable text came back.
+func fetchOutcome(d FetchData) string {
+	if d.StatusCode >= 400 {
+		return fmt.Sprintf("HTTP %d", d.StatusCode)
+	}
+	size := len(d.Text)
+	switch {
+	case size == 0:
+		return "empty"
+	case size < 1024:
+		return fmt.Sprintf("%d B", size)
+	default:
+		return fmt.Sprintf("%.1f KB", float64(size)/1024)
+	}
 }
 
 // webRenderFetch formats a fetch result for the model.

@@ -164,6 +164,7 @@ func translate(ev app.Event) (uiEvent, bool) {
 		u.tool = asString(m["tool"])
 		u.isError, _ = m["error"].(bool)
 		u.duration = asDuration(m["duration"])
+		u.text = asString(m["display"])
 		return u, true
 	case app.EventCommandStdout:
 		return uiEvent{kind: evCommandOutput, text: asString(ev.Payload)}, true

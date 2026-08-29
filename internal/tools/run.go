@@ -195,9 +195,56 @@ func (t *RunTool) Execute(ctx context.Context, call Call) (Result, error) {
 		Tool:     call.Name,
 		Content:  execFormatRunResult(command, dir, res, t.execMaxLines()),
 		Data:     res,
+		Display:  execOutcome(res),
 		IsError:  !res.Success(),
 		Duration: time.Since(started),
 	}, nil
+}
+
+// execOutcome summarises a command result for a watching user. Exit status is
+// the thing worth seeing at a glance; the full output is in Content.
+func execOutcome(res execution.RunResult) string {
+	switch {
+	case res.TimedOut:
+		return "timed out"
+	case res.Cancelled:
+		return "cancelled"
+	case res.Signal != "":
+		return "killed by " + res.Signal
+	case res.ExitCode != 0:
+		return fmt.Sprintf("exit %d", res.ExitCode)
+	}
+	if n := countLines(res.Stdout); n > 0 {
+		return fmt.Sprintf("exit 0 · %s", plural(n, "line"))
+	}
+	return "exit 0"
+}
+
+// countLines counts non-empty output lines.
+func countLines(s string) int {
+	s = strings.TrimRight(s, "\n")
+	if s == "" {
+		return 0
+	}
+	return strings.Count(s, "\n") + 1
+}
+
+// plural renders a count with its noun pluralised.
+//
+// It handles the -es case, because the nouns here include "match" and a
+// summary reading "2 matchs" undermines confidence in everything around it.
+func plural(n int, noun string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, noun)
+	}
+	suffix := "s"
+	switch {
+	case strings.HasSuffix(noun, "ch"), strings.HasSuffix(noun, "sh"),
+		strings.HasSuffix(noun, "s"), strings.HasSuffix(noun, "x"),
+		strings.HasSuffix(noun, "z"):
+		suffix = "es"
+	}
+	return fmt.Sprintf("%d %s%s", n, noun, suffix)
 }
 
 // execClassify applies the configured classifier, defaulting to the

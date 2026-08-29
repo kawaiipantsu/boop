@@ -311,7 +311,44 @@ func fsIsBinary(sample []byte) bool {
 
 // fsResult builds a successful Result carrying a structured payload.
 func fsResult(call Call, content string, data any) Result {
-	return Result{CallID: call.ID, Tool: call.Name, Content: content, Data: data}
+	return Result{
+		CallID: call.ID, Tool: call.Name, Content: content,
+		Data: data, Display: fsOutcome(data),
+	}
+}
+
+// fsOutcome summarises a filesystem result in a few words, so a watching user
+// sees what the call produced rather than only that it succeeded.
+//
+// It lives here, keyed on the payload type, so every filesystem tool gets a
+// summary from one place instead of each repeating the logic.
+func fsOutcome(data any) string {
+	switch d := data.(type) {
+	case ReadData:
+		if d.LastLine > 0 && d.FirstLine > 0 {
+			return plural(d.LastLine-d.FirstLine+1, "line")
+		}
+		return plural(d.TotalLines, "line")
+	case WriteData:
+		verb := "updated"
+		if d.Created {
+			verb = "created"
+		}
+		return fmt.Sprintf("%s · %s", verb, fsHumanBytes(int64(d.Bytes)))
+	case EditData:
+		return plural(d.Replacements, "replacement")
+	case ListData:
+		return fmt.Sprintf("%s, %s", plural(d.Directories, "dir"), plural(d.Files, "file"))
+	case FindData:
+		if d.Truncated {
+			return plural(len(d.Matches), "match") + "+"
+		}
+		return plural(len(d.Matches), "match")
+	case SearchData:
+		return fmt.Sprintf("%s in %s", plural(len(d.Matches), "match"), plural(d.FilesMatched, "file"))
+	default:
+		return ""
+	}
 }
 
 // fsFailure builds a failed Result that still carries a structured payload, so

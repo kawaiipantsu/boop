@@ -136,9 +136,16 @@ func (t *WebSearchTool) Execute(ctx context.Context, call Call) (Result, error) 
 		Heading: resp.Heading, Abstract: resp.Abstract,
 		AbstractURL: resp.AbstractURL, Answer: resp.Answer, Definition: resp.Definition,
 	}
+	display := plural(len(resp.Results), "result")
+	if len(resp.Results) == 0 {
+		display = "no results"
+	} else if resp.Abstract != "" || resp.Answer != "" {
+		display += " + answer"
+	}
 	return Result{
 		CallID: call.ID, Tool: call.Name, Data: data,
 		Duration: time.Since(started),
+		Display:  display,
 		IsError:  len(resp.Results) == 0 && resp.Abstract == "" && resp.Answer == "",
 		Content:  webRenderSearch(data),
 	}, nil
