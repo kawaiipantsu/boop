@@ -31,8 +31,74 @@ func (c *Config) Validate() (warnings []string, err error) {
 	errs = append(errs, c.validateProviders()...)
 	errs = append(errs, c.validateRouting()...)
 	errs = append(errs, c.validateLogging()...)
+	errs = append(errs, c.validateNetwork()...)
 
-	return c.webWarnings(), errors.Join(errs...)
+	warnings = append(warnings, c.webWarnings()...)
+	warnings = append(warnings, c.networkWarnings()...)
+	return warnings, errors.Join(errs...)
+}
+
+// validateNetwork checks the outbound web access settings.
+func (c *Config) validateNetwork() []error {
+	var errs []error
+	n := c.Network
+
+	if n.Timeout <= 0 {
+		errs = append(errs, fmt.Errorf("network.timeout: must be positive, got %s", n.Timeout))
+	}
+	if n.MaxResponseBytes <= 0 {
+		errs = append(errs, fmt.Errorf("network.max_response_bytes: must be positive, got %d", n.MaxResponseBytes))
+	}
+	if n.MaxRedirects < 0 {
+		errs = append(errs, fmt.Errorf("network.max_redirects: must not be negative, got %d", n.MaxRedirects))
+	}
+	if p := strings.ToLower(strings.TrimSpace(n.Search.Provider)); p != "" && p != DefaultSearchProvider {
+		errs = append(errs, fmt.Errorf("network.search.provider: %q is not implemented (only %q is)", n.Search.Provider, DefaultSearchProvider))
+	}
+	if n.Search.MaxResults < 0 {
+		errs = append(errs, fmt.Errorf("network.search.max_results: must not be negative, got %d", n.Search.MaxResults))
+	}
+	switch strings.ToLower(strings.TrimSpace(n.Search.SafeSearch)) {
+	case "", "off", "moderate", "strict":
+	default:
+		errs = append(errs, fmt.Errorf("network.search.safe_search: %q is not valid (want off, moderate or strict)", n.Search.SafeSearch))
+	}
+	// A custom User-Agent must still identify Boop, so site operators can
+	// attribute the traffic and block it if they choose.
+	if ua := strings.TrimSpace(n.UserAgent); ua != "" && !strings.Contains(strings.ToLower(ua), "boop") {
+		errs = append(errs, fmt.Errorf("network.user_agent: %q must contain %q so outbound requests stay attributable", n.UserAgent, "boop"))
+	}
+	for i, d := range n.AllowedDomains {
+		if strings.TrimSpace(d) == "" {
+			errs = append(errs, fmt.Errorf("network.allowed_domains[%d]: empty entry", i))
+		}
+	}
+	for i, d := range n.BlockedDomains {
+		if strings.TrimSpace(d) == "" {
+			errs = append(errs, fmt.Errorf("network.blocked_domains[%d]: empty entry", i))
+		}
+	}
+	return errs
+}
+
+// networkWarnings flags outbound settings that are legal but worth saying out
+// loud, since they widen what a model-supplied URL can reach.
+func (c *Config) networkWarnings() []string {
+	n := c.Network
+	if !n.Enabled {
+		return nil
+	}
+	var warnings []string
+	if n.AllowPrivateNetworks {
+		warnings = append(warnings,
+			"network.allow_private_networks is enabled: a URL chosen by the model can reach loopback, "+
+				"link-local and private addresses, including cloud metadata endpoints")
+	}
+	if !n.RespectRobots {
+		warnings = append(warnings,
+			"network.respect_robots is disabled: Boop will scrape sites that ask not to be scraped")
+	}
+	return warnings
 }
 
 // validateExecution checks the execution mode.

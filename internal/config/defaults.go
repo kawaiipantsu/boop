@@ -72,6 +72,7 @@ func Default() *Config {
 			Port:    DefaultWebPort,
 			Auth:    AuthConfig{Enabled: false},
 		},
+		Network:   DefaultNetwork(),
 		Providers: DefaultProviders(),
 		Logging: LoggingConfig{
 			Level: DefaultLogLevel,
@@ -79,6 +80,51 @@ func Default() *Config {
 	}
 	c.Permissions = DefaultPermissions()
 	return c
+}
+
+// Network defaults. Outbound web access is off until the user turns it on.
+const (
+	// DefaultNetworkTimeout bounds a single outbound request.
+	DefaultNetworkTimeout = 30 * time.Second
+	// DefaultMaxResponseBytes caps a fetched body at 5 MiB so a hostile or
+	// endless response cannot exhaust memory.
+	DefaultMaxResponseBytes int64 = 5 << 20
+	// DefaultMaxRedirects bounds a redirect chain.
+	DefaultMaxRedirects = 5
+	// DefaultSearchProvider is the only implemented search backend.
+	DefaultSearchProvider = "duckduckgo"
+	// DefaultSearchMaxResults matches what the DuckDuckGo lite endpoint
+	// returns for a single page.
+	DefaultSearchMaxResults = 10
+	// DefaultSafeSearch is DuckDuckGo's own default.
+	DefaultSafeSearch = "moderate"
+	// DefaultSearchRegion is DuckDuckGo's no-region code.
+	DefaultSearchRegion = "wt-wt"
+)
+
+// DefaultNetwork returns the outbound web access defaults.
+//
+// Enabled is false: reaching third-party sites sends the user's text to servers
+// they did not choose, so it is opt-in rather than something Boop starts doing
+// on its own. Private-network access is likewise off, because a URL suggested
+// by a model must not be able to reach the loopback interface or a cloud
+// metadata endpoint.
+func DefaultNetwork() NetworkConfig {
+	return NetworkConfig{
+		Enabled:              false,
+		UserAgent:            "",
+		Timeout:              Duration(DefaultNetworkTimeout),
+		MaxResponseBytes:     DefaultMaxResponseBytes,
+		MaxRedirects:         DefaultMaxRedirects,
+		AllowPrivateNetworks: false,
+		RespectRobots:        true,
+		Search: SearchConfig{
+			Provider:   DefaultSearchProvider,
+			MaxResults: DefaultSearchMaxResults,
+			SafeSearch: DefaultSafeSearch,
+			Region:     DefaultSearchRegion,
+		},
+	}
 }
 
 // DefaultProviders returns the provider table from §56.

@@ -24,6 +24,7 @@ type Config struct {
 	Web         WebConfig                 `yaml:"web" json:"web"`
 	Providers   map[string]ProviderConfig `yaml:"providers" json:"providers"`
 	Permissions PermissionsConfig         `yaml:"permissions" json:"permissions"`
+	Network     NetworkConfig             `yaml:"network" json:"network"`
 	Routing     map[string]RouteTarget    `yaml:"routing,omitempty" json:"routing,omitempty"`
 	Fallback    []string                  `yaml:"fallback,omitempty" json:"fallback,omitempty"`
 	Logging     LoggingConfig             `yaml:"logging" json:"logging"`
@@ -97,6 +98,48 @@ type PermissionsConfig struct {
 	Production struct {
 		Change permissions.Rule `yaml:"change" json:"change"`
 	} `yaml:"production" json:"production"`
+}
+
+// NetworkConfig controls Boop's outbound access to the public internet:
+// fetching URLs and running web searches.
+//
+// This is distinct from WebConfig, which serves Boop's own local WebUI. Reaching
+// out to third-party sites is off by default and must be turned on deliberately,
+// because it sends the user's query text to servers they did not choose.
+type NetworkConfig struct {
+	// Enabled is the master toggle for all outbound fetching and searching.
+	// With it false, the fetch and websearch tools refuse to run at all.
+	Enabled bool `yaml:"enabled" json:"enabled"`
+	// UserAgent overrides the request User-Agent. The default identifies Boop
+	// so site operators can attribute and, if they wish, block the traffic.
+	UserAgent        string   `yaml:"user_agent,omitempty" json:"user_agent,omitempty"`
+	Timeout          Duration `yaml:"timeout" json:"timeout"`
+	MaxResponseBytes int64    `yaml:"max_response_bytes" json:"max_response_bytes"`
+	MaxRedirects     int      `yaml:"max_redirects" json:"max_redirects"`
+	// AllowPrivateNetworks permits requests to loopback, link-local and
+	// private ranges. Off by default: a model-supplied URL pointing at
+	// 169.254.169.254 or an intranet host is a server-side request forgery
+	// vector, not a feature.
+	AllowPrivateNetworks bool `yaml:"allow_private_networks" json:"allow_private_networks"`
+	// AllowedDomains, when non-empty, is an allowlist: nothing else is fetched.
+	AllowedDomains []string `yaml:"allowed_domains,omitempty" json:"allowed_domains,omitempty"`
+	// BlockedDomains is always denied, and takes precedence over AllowedDomains.
+	BlockedDomains []string `yaml:"blocked_domains,omitempty" json:"blocked_domains,omitempty"`
+	// RespectRobots honours robots.txt when scraping. Leaving this on is the
+	// difference between a well-behaved client and an abusive one.
+	RespectRobots bool         `yaml:"respect_robots" json:"respect_robots"`
+	Search        SearchConfig `yaml:"search" json:"search"`
+}
+
+// SearchConfig selects and bounds the web search backend.
+type SearchConfig struct {
+	// Provider names the search backend. Only "duckduckgo" is implemented.
+	Provider   string `yaml:"provider" json:"provider"`
+	MaxResults int    `yaml:"max_results" json:"max_results"`
+	// SafeSearch is off, moderate or strict.
+	SafeSearch string `yaml:"safe_search" json:"safe_search"`
+	// Region is a DuckDuckGo region code such as "wt-wt" (no region).
+	Region string `yaml:"region,omitempty" json:"region,omitempty"`
 }
 
 // RouteTarget selects a provider/model pair for a routing class.

@@ -45,13 +45,18 @@ const (
 type Category string
 
 const (
-	CatFilesystemRead   Category = "filesystem.read"
-	CatFilesystemWrite  Category = "filesystem.write"
-	CatShellExecute     Category = "shell.execute"
-	CatGitRead          Category = "git.read"
-	CatGitCommit        Category = "git.commit"
-	CatGitPush          Category = "git.push"
-	CatNetworkHTTP      Category = "network.http"
+	CatFilesystemRead  Category = "filesystem.read"
+	CatFilesystemWrite Category = "filesystem.write"
+	CatShellExecute    Category = "shell.execute"
+	CatGitRead         Category = "git.read"
+	CatGitCommit       Category = "git.commit"
+	CatGitPush         Category = "git.push"
+	CatNetworkHTTP     Category = "network.http"
+	// CatNetworkFetch covers retrieving an arbitrary external URL.
+	CatNetworkFetch Category = "network.fetch"
+	// CatNetworkSearch covers running a web search, which discloses the
+	// query text to a third-party search engine.
+	CatNetworkSearch    Category = "network.search"
 	CatProductionChange Category = "production.change"
 )
 
