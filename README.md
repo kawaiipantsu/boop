@@ -1,11 +1,10 @@
 <div align="center">
 
-<!-- Banner generated with capsule-render and committed as a PNG so the README
-     never depends on a third-party service being up. To regenerate:
-     https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=220&section=header&text=Boop&fontSize=90&fontColor=ffffff&fontAlignY=36&desc=Local-first%20AI%20client%20and%20agent%20runtime&descSize=18&descAlign=50&descAlignY=57
-     Keep "and" rather than "&" in desc: capsule-render writes the character
-     into the SVG unescaped, which makes it malformed XML and GitHub drops it. -->
-<img src=".github/assets/header.png" width="100%" alt="Boop — local-first AI client and agent runtime" />
+<!-- Header generated with shieldcn.dev and committed as a JPEG, so the front
+     page does not break when a third-party service is unreachable. The Boop
+     mark from assets/logo is embedded in it as the logo. Regenerate with
+     ./assets/build-header.sh — the source URL lives in that script. -->
+<img src=".github/assets/header.jpg" width="100%" alt="Boop — local-first AI client and agent runtime" />
 
 **Not a chat frontend — an AI execution environment.**
 

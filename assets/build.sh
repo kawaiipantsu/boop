@@ -116,20 +116,10 @@ social "$OUT_SOCIAL/twitter-card.png"          1200 675 0.42 295 158 0.62 550 23
 rsvg-convert -w 512 -h 512 assets/logo/boop-mark.svg -o "$OUT_SOCIAL/avatar-512.png"
 rsvg-convert -w 400 -h 400 assets/logo/boop-mark.svg -o "$OUT_SOCIAL/avatar-400.png"
 
-# README banner, regenerated locally rather than hotlinked.
-{
-  echo '<?xml version="1.0" encoding="UTF-8"?>'
-  echo '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 300" width="1280" height="300">'
-  grad_def
-  echo '  <rect width="1280" height="300" fill="url(#bgGrad)"/>'
-  echo '  <rect width="1280" height="6" fill="url(#boopGrad)"/>'
-  mark_group "translate(419,43) scale(0.30)"
-  word_group "translate(603,98) scale(0.45)" "$PAPER"
-  echo "  <text x=\"640\" y=\"258\" text-anchor=\"middle\" fill=\"#93A3C0\" \
-font-family=\"DejaVu Sans, Helvetica, Arial, sans-serif\" font-size=\"26\">$TAGLINE</text>"
-  echo '</svg>'
-} > /tmp/banner.svg
-rsvg-convert -w 2560 -h 600 /tmp/banner.svg -o .github/assets/header.png
+# The README header comes from shieldcn.dev with the mark embedded; it needs
+# network access, so it lives in its own script rather than blocking a local
+# rebuild of the logo set.
+#   ./assets/build-header.sh
 
 echo "generated:"
 find assets .github/assets -name '*.png' -o -name '*.ico' -o -name '*.svg' | sort | sed 's/^/  /'
