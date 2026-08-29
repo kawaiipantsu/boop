@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/kawaiipantsu/boop/security/advisories/new
+    about: Report privately. Do not open a public issue for a security problem — see SECURITY.md.
+  - name: Question or idea
+    url: https://github.com/kawaiipantsu/boop/discussions
+    about: For usage questions and open-ended discussion, before it becomes a bug or a feature request.
+  - name: Specification (PROJECT.md)
+    url: https://github.com/kawaiipantsu/boop/blob/main/PROJECT.md
+    about: The authoritative spec. Check whether your idea is already specified, already scheduled, or an explicit non-goal (§63).
