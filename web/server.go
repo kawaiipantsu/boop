@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kawaiipantsu/boop/internal/agent"
 	"github.com/kawaiipantsu/boop/internal/app"
 	"github.com/kawaiipantsu/boop/internal/config"
 	"github.com/kawaiipantsu/boop/internal/permissions"
@@ -49,9 +50,19 @@ type Options struct {
 	// Broker serves the approval queue (§50). The API refuses approval
 	// operations rather than inventing a second approval path when it is nil.
 	Broker *permissions.Broker
-	// Stats supplies the /api/stats snapshot. Without it the endpoint falls
-	// back to the persisted per-session usage totals.
+	// Stats supplies the /api/stats snapshot. When it is nil the tracker the
+	// runtime already owns (App.Stats) is used, so /api/stats works without
+	// every caller remembering to pass one; only when there is neither does
+	// the endpoint fall back to the persisted per-session usage totals.
 	Stats *stats.Tracker
+
+	// Agents builds the agent fleet for a session. Nil uses
+	// agent.NewFromApp, which returns nil when agents are disabled.
+	//
+	// It is injectable so the API can be tested against a deterministic task
+	// runner: the production coordinator drives real models, and §41 forbids
+	// tests that need one.
+	Agents func(*app.App, string) *agent.Coordinator
 
 	// Listen and Port override the configured bind address, for `boop --web
 	// --listen ... --port ...`. Zero values keep the configuration.
@@ -120,6 +131,18 @@ type Server struct {
 	currentSession string
 	running        map[string]context.CancelFunc
 	restart        bool
+
+	// agentMu guards the fleet bookkeeping. It is separate from mu because a
+	// coordinator call can take a while and must not block a status request.
+	agentMu     sync.Mutex
+	fleets      map[string]*agent.Coordinator
+	agentRuns   map[string]*agentRun
+	fleetClosed bool
+	newFleet    func(*app.App, string) *agent.Coordinator
+
+	// project caches the last discovery result; see handleProject.
+	projectMu   sync.Mutex
+	projectInfo *projectCacheEntry
 
 	shutdownOnce sync.Once
 	shutdownErr  error
@@ -197,13 +220,23 @@ func New(opts Options) (*Server, error) {
 		return nil, err
 	}
 
+	// The runtime already owns a tracker; an explicit one only overrides it.
+	tracker := opts.Stats
+	if tracker == nil && opts.App != nil {
+		tracker = opts.App.Stats
+	}
+	newFleet := opts.Agents
+	if newFleet == nil {
+		newFleet = agent.NewFromApp
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		app:          opts.App,
 		cfg:          cfg,
 		web:          webCfg,
 		broker:       opts.Broker,
-		stats:        opts.Stats,
+		stats:        tracker,
 		log:          logger,
 		auth:         auth,
 		origins:      origins,
@@ -215,6 +248,9 @@ func New(opts Options) (*Server, error) {
 		baseCtx:      ctx,
 		baseCancel:   cancel,
 		running:      make(map[string]context.CancelFunc),
+		fleets:       make(map[string]*agent.Coordinator),
+		agentRuns:    make(map[string]*agentRun),
+		newFleet:     newFleet,
 		approvalDone: make(chan struct{}),
 		serveErr:     make(chan error, 1),
 		listener:     opts.Listener,
@@ -357,6 +393,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 			s.unsubscribe()
 		}
 		s.cancelTurns()
+		// Before the hub closes, so the cancelled status of every worker
+		// still reaches connected clients.
+		s.stopFleets(ctx)
 		s.hub.shutdown(ctx)
 		s.baseCancel()
 		<-s.approvalDone
@@ -449,12 +488,15 @@ func (s *Server) routes() http.Handler {
 		"/api/models":    s.handleModels,
 		"/api/providers": s.handleProviders,
 		"/api/agents":    s.handleAgents,
+		"/api/agents/":   s.handleAgentByID,
 		"/api/sessions":  s.handleSessions,
 		"/api/session":   s.handleSession,
 		"/api/stats":     s.handleStats,
 		"/api/tools":     s.handleTools,
 		"/api/message":   s.handleMessage,
 		"/api/approval":  s.handleApproval,
+		"/api/project":   s.handleProject,
+		"/api/project/":  s.handleProjectSub,
 	}
 	for path, handler := range api {
 		mux.Handle(path, s.secured(handler))
@@ -530,7 +572,7 @@ func (s *Server) applyCORS(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
 	w.Header().Set("Access-Control-Max-Age", "600")
 	return true

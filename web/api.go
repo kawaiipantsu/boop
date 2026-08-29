@@ -14,8 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/kawaiipantsu/boop/internal/app"
 	"github.com/kawaiipantsu/boop/internal/config"
 	"github.com/kawaiipantsu/boop/internal/permissions"
@@ -36,6 +34,9 @@ const (
 	codeUnavailable      = "unavailable"
 	codeInvalidConfig    = "invalid_config"
 	codeInternal         = "internal"
+	// codeUnsupportedCapability is the §8 refusal: the request is well formed
+	// and the attachment is readable, but the selected model cannot accept it.
+	codeUnsupportedCapability = "unsupported_capability"
 )
 
 // maxRequestBytes bounds a request body. The API takes prompts and config
@@ -622,151 +623,6 @@ func (s *Server) handleTools(w http.ResponseWriter, r *http.Request) {
 }
 
 // ---------------------------------------------------------------------------
-// GET|POST /api/agents
-// ---------------------------------------------------------------------------
-
-// agentsResponse lists the agents recorded for a session (§26).
-type agentsResponse struct {
-	SessionID string                `json:"session_id"`
-	Agents    []session.AgentRecord `json:"agents"`
-	Max       int                   `json:"max"`
-	Enabled   bool                  `json:"enabled"`
-}
-
-// agentRequest asks for a new agent.
-type agentRequest struct {
-	SessionID string `json:"session_id,omitempty"`
-	Name      string `json:"name"`
-	Task      string `json:"task"`
-	Provider  string `json:"provider,omitempty"`
-	Model     string `json:"model,omitempty"`
-	ParentID  string `json:"parent_id,omitempty"`
-}
-
-func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		s.listAgents(w, r)
-	case http.MethodPost:
-		s.createAgent(w, r)
-	default:
-		methodNotAllowed(w, http.MethodGet, http.MethodPost)
-	}
-}
-
-func (s *Server) listAgents(w http.ResponseWriter, r *http.Request) {
-	if !s.requireApp(w) {
-		return
-	}
-	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
-	if sessionID == "" {
-		sessionID = s.CurrentSession()
-	}
-	resp := agentsResponse{
-		SessionID: sessionID,
-		Agents:    []session.AgentRecord{},
-		Max:       s.cfg.Agents.Max,
-		Enabled:   s.cfg.Agents.Enabled,
-	}
-	if sessionID != "" {
-		agents, err := s.app.Sessions.Agents(r.Context(), sessionID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, codeInternal, "cannot list agents: "+err.Error())
-			return
-		}
-		if agents != nil {
-			resp.Agents = agents
-		}
-	}
-	writeJSON(w, http.StatusOK, resp)
-}
-
-// createAgent records a requested agent and announces it on the bus.
-//
-// The scheduler that actually runs agents is a separate milestone (§11); this
-// endpoint owns the part that belongs to the API — validating the request,
-// persisting it against the session, and emitting agent.created so every
-// attached frontend sees the same queue. The record's status is "queued", not
-// "running", because claiming otherwise would be a lie the UI would repeat.
-func (s *Server) createAgent(w http.ResponseWriter, r *http.Request) {
-	if !s.requireApp(w) {
-		return
-	}
-	var req agentRequest
-	if !decodeBody(w, r, &req) {
-		return
-	}
-	if strings.TrimSpace(req.Task) == "" {
-		writeError(w, http.StatusBadRequest, codeBadRequest, "an agent needs a `task`")
-		return
-	}
-	if !s.cfg.Agents.Enabled {
-		writeError(w, http.StatusConflict, codeConflict, "agents are disabled; set agents.enabled in the configuration")
-		return
-	}
-
-	sessionID := strings.TrimSpace(req.SessionID)
-	if sessionID == "" {
-		sessionID = s.CurrentSession()
-	}
-	if sessionID == "" {
-		writeError(w, http.StatusBadRequest, codeBadRequest, "no session is selected; POST /api/session first or pass session_id")
-		return
-	}
-	existing, err := s.app.Sessions.Agents(r.Context(), sessionID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, codeInternal, "cannot read the agent list: "+err.Error())
-		return
-	}
-	if s.cfg.Agents.Max > 0 && countActiveAgents(existing) >= s.cfg.Agents.Max {
-		writeError(w, http.StatusConflict, codeConflict,
-			fmt.Sprintf("the agent limit of %d is already reached (agents.max)", s.cfg.Agents.Max))
-		return
-	}
-
-	now := s.now().UTC()
-	rec := &session.AgentRecord{
-		// The store requires an ID up front rather than assigning one, so the
-		// event published below can reference the agent that was just saved.
-		ID:        uuid.NewString(),
-		SessionID: sessionID,
-		ParentID:  req.ParentID,
-		Name:      strings.TrimSpace(req.Name),
-		Task:      strings.TrimSpace(req.Task),
-		Provider:  firstNonEmpty(req.Provider, s.cfg.Provider),
-		Model:     firstNonEmpty(req.Model, s.cfg.Model),
-		Status:    "queued",
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-	if err := s.app.Sessions.SaveAgent(r.Context(), rec); err != nil {
-		writeError(w, http.StatusInternalServerError, codeInternal, "cannot record the agent: "+err.Error())
-		return
-	}
-	s.app.Bus.Publish(app.Event{
-		Type:      app.EventAgentCreated,
-		SessionID: sessionID,
-		AgentID:   rec.ID,
-		Payload:   rec,
-	})
-	writeJSON(w, http.StatusCreated, map[string]any{"agent": rec})
-}
-
-// countActiveAgents counts agents that have not finished, which is what
-// agents.max bounds.
-func countActiveAgents(recs []session.AgentRecord) int {
-	n := 0
-	for _, rec := range recs {
-		switch rec.Status {
-		case "complete", "completed", "failed", "error", "cancelled":
-		default:
-			n++
-		}
-	}
-	return n
-}
-
-// ---------------------------------------------------------------------------
 // GET /api/sessions
 // ---------------------------------------------------------------------------
 
@@ -1100,6 +956,14 @@ type messageRequest struct {
 	// as bus events on the WebSocket, which is the right shape for a long run
 	// that would otherwise sit on an idle HTTP connection.
 	Async bool `json:"async,omitempty"`
+	// Attachments are files to attach to this message (§27). The same files
+	// can be uploaded as multipart/form-data instead.
+	Attachments []attachmentRequest `json:"attachments,omitempty"`
+	// Degrade controls what happens when an attachment needs vision and the
+	// selected model has none: absent or true drops the image content and
+	// sends the extracted text with a note; false reports the §8 capability
+	// error instead. Neither silently discards anything.
+	Degrade *bool `json:"degrade,omitempty"`
 }
 
 // turnResponse is the completed turn.
@@ -1113,6 +977,18 @@ type turnResponse struct {
 	StoppedAtLimit bool               `json:"stopped_at_limit"`
 	Provider       string             `json:"provider"`
 	Model          string             `json:"model"`
+	// Attachments describes what was attached and how it was processed.
+	Attachments []attachmentInfo `json:"attachments,omitempty"`
+	// Notes explain any degradation applied to the attachments.
+	Notes []string `json:"notes,omitempty"`
+}
+
+// turnAccepted is the 202 body of an async turn.
+type turnAccepted struct {
+	SessionID   string           `json:"session_id"`
+	Accepted    bool             `json:"accepted"`
+	Attachments []attachmentInfo `json:"attachments,omitempty"`
+	Notes       []string         `json:"notes,omitempty"`
 }
 
 func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
@@ -1123,12 +999,33 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
 	if !s.requireApp(w) {
 		return
 	}
-	var req messageRequest
-	if !decodeBody(w, r, &req) {
+
+	var (
+		req     messageRequest
+		uploads []upload
+		err     error
+	)
+	if isMultipart(r) {
+		req, uploads, err = collectMultipart(r)
+		if err != nil {
+			if !writeAttachmentError(w, err) {
+				writeError(w, http.StatusBadRequest, codeBadRequest, err.Error())
+			}
+			return
+		}
+	} else if !decodeMessageBody(w, r, &req) {
 		return
 	}
 	if strings.TrimSpace(req.Content) == "" {
 		writeError(w, http.StatusBadRequest, codeBadRequest, "`content` must not be empty")
+		return
+	}
+
+	attachments, err := s.prepareTurn(r.Context(), req, uploads)
+	if err != nil {
+		if !writeAttachmentError(w, err) {
+			writeError(w, http.StatusInternalServerError, codeInternal, err.Error())
+		}
 		return
 	}
 
@@ -1141,21 +1038,65 @@ func (s *Server) handleMessage(w http.ResponseWriter, r *http.Request) {
 	if req.Async {
 		// The turn outlives the request, so it runs under the server context
 		// and is cancelled by Shutdown rather than by the client hanging up.
-		started, err := s.startTurn(s.baseCtx, sessionID, req)
+		started, err := s.startTurn(s.baseCtx, sessionID, req, attachments)
 		if err != nil {
 			writeError(w, statusForTurnError(err), codeForTurnError(err), err.Error())
 			return
 		}
-		writeJSON(w, http.StatusAccepted, map[string]any{"session_id": started, "accepted": true})
+		resp := turnAccepted{SessionID: started, Accepted: true}
+		if attachments != nil {
+			resp.Attachments, resp.Notes = attachments.infos, attachments.notes
+		}
+		writeJSON(w, http.StatusAccepted, resp)
 		return
 	}
 
-	turn, err := s.runTurn(r.Context(), sessionID, req)
+	turn, err := s.runTurn(r.Context(), sessionID, req, attachments)
 	if err != nil {
 		writeError(w, statusForTurnError(err), codeForTurnError(err), err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, turn)
+}
+
+// isMultipart reports a form upload rather than a JSON body.
+func isMultipart(r *http.Request) bool {
+	base, _, _ := strings.Cut(r.Header.Get("Content-Type"), ";")
+	return strings.TrimSpace(base) == "multipart/form-data"
+}
+
+// decodeMessageBody decodes a JSON message body under the upload budget.
+//
+// It is the one endpoint that may carry files, so it is the one endpoint that
+// does not use the general one-megabyte cap — and the only one that has to
+// tell an oversized body apart from a malformed one, because "your file is too
+// big" and "your JSON is broken" send a client to very different places.
+func decodeMessageBody(w http.ResponseWriter, r *http.Request, dst *messageRequest) bool {
+	if ct := r.Header.Get("Content-Type"); ct != "" {
+		if base, _, _ := strings.Cut(ct, ";"); strings.TrimSpace(base) != "application/json" {
+			writeError(w, http.StatusUnsupportedMediaType, codeBadRequest,
+				"the request body must be application/json or multipart/form-data")
+			return false
+		}
+	}
+	if r.ContentLength > maxUploadBytes {
+		writeError(w, http.StatusRequestEntityTooLarge, codeBadRequest,
+			fmt.Sprintf("the request body is %d bytes, over the %d byte limit", r.ContentLength, maxUploadBytes))
+		return false
+	}
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxUploadBytes))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(dst); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			writeError(w, http.StatusRequestEntityTooLarge, codeBadRequest,
+				fmt.Sprintf("the request body exceeds the %d byte limit", maxUploadBytes))
+			return false
+		}
+		writeError(w, http.StatusBadRequest, codeBadRequest, "the request body is not valid JSON: "+err.Error())
+		return false
+	}
+	return true
 }
 
 // errTurnBusy reports a second turn attempted on a session that is still
@@ -1208,7 +1149,7 @@ func (s *Server) resolveSession(ctx context.Context, requested string) (string, 
 }
 
 // startTurn runs a turn in the background, reporting only whether it started.
-func (s *Server) startTurn(ctx context.Context, sessionID string, req messageRequest) (string, error) {
+func (s *Server) startTurn(ctx context.Context, sessionID string, req messageRequest, att *attachmentSet) (string, error) {
 	turnCtx, cancel := context.WithCancel(ctx)
 	if !s.beginTurn(sessionID, cancel) {
 		cancel()
@@ -1217,7 +1158,7 @@ func (s *Server) startTurn(ctx context.Context, sessionID string, req messageReq
 	go func() {
 		defer cancel()
 		defer s.endTurn(sessionID)
-		if _, err := s.execTurn(turnCtx, sessionID, req); err != nil {
+		if _, err := s.execTurn(turnCtx, sessionID, req, att); err != nil {
 			s.publishTurnError(sessionID, err)
 		}
 	}()
@@ -1225,20 +1166,20 @@ func (s *Server) startTurn(ctx context.Context, sessionID string, req messageReq
 }
 
 // runTurn runs a turn and waits for it.
-func (s *Server) runTurn(ctx context.Context, sessionID string, req messageRequest) (*turnResponse, error) {
+func (s *Server) runTurn(ctx context.Context, sessionID string, req messageRequest, att *attachmentSet) (*turnResponse, error) {
 	turnCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if !s.beginTurn(sessionID, cancel) {
 		return nil, errTurnBusy
 	}
 	defer s.endTurn(sessionID)
-	return s.execTurn(turnCtx, sessionID, req)
+	return s.execTurn(turnCtx, sessionID, req, att)
 }
 
 // execTurn is the shared body of a user turn: record the prompt, assemble a
 // bounded context, run the loop, and persist what came back.
-func (s *Server) execTurn(ctx context.Context, sessionID string, req messageRequest) (*turnResponse, error) {
-	userMsg := provider.Message{Role: provider.RoleUser, Content: req.Content}
+func (s *Server) execTurn(ctx context.Context, sessionID string, req messageRequest, att *attachmentSet) (*turnResponse, error) {
+	sendMsg, storeMsg := userMessages(req.Content, att)
 
 	history, err := s.app.Sessions.History().Messages(ctx, sessionID, session.TranscriptOptions{
 		Limit:  historyWindow,
@@ -1247,7 +1188,7 @@ func (s *Server) execTurn(ctx context.Context, sessionID string, req messageRequ
 	if err != nil {
 		return nil, fmt.Errorf("cannot read the transcript: %w", err)
 	}
-	if _, err := s.app.Sessions.AppendMessage(ctx, sessionID, userMsg); err != nil {
+	if _, err := s.app.Sessions.AppendMessage(ctx, sessionID, storeMsg); err != nil {
 		return nil, fmt.Errorf("cannot record the prompt: %w", err)
 	}
 
@@ -1260,12 +1201,18 @@ func (s *Server) execTurn(ctx context.Context, sessionID string, req messageRequ
 		Content: s.systemPrompt(selProvider, selModel),
 	})
 	messages = append(messages, history...)
-	messages = append(messages, userMsg)
+	messages = append(messages, sendMsg)
 
 	s.app.Bus.Publish(app.Event{Type: app.EventPromptReceived, SessionID: sessionID, Payload: req.Content})
 
 	loop := s.app.NewLoop(sessionID)
 	loop.Selection = provider.Selection{Provider: selProvider, Model: selModel}
+	if att != nil && att.vision {
+		// Image parts survived the check, either because the model can see or
+		// because its capabilities could not be read. Either way the router
+		// makes the final §8 decision for the target it actually picks.
+		loop.Selection.Required = provider.Capabilities{provider.CapabilityVision}
+	}
 	turn, err := loop.Run(ctx, messages)
 	if err != nil {
 		return nil, err
@@ -1287,7 +1234,7 @@ func (s *Server) execTurn(ctx context.Context, sessionID string, req messageRequ
 		}
 	}
 
-	return &turnResponse{
+	resp := &turnResponse{
 		SessionID:      sessionID,
 		Text:           turn.Text,
 		Messages:       turn.Messages,
@@ -1297,7 +1244,40 @@ func (s *Server) execTurn(ctx context.Context, sessionID string, req messageRequ
 		StoppedAtLimit: turn.StoppedAtLimit,
 		Provider:       turn.Decision.Target.Provider,
 		Model:          turn.Decision.Target.Model,
-	}, nil
+	}
+	if att != nil {
+		resp.Attachments, resp.Notes = att.infos, att.notes
+	}
+	return resp, nil
+}
+
+// userMessages builds the message sent to the model and the one written to the
+// transcript.
+//
+// They differ only in how binary parts are represented; see storedPart. When
+// there is nothing attached both are the plain text message the API has always
+// produced, so the common path is unchanged.
+func userMessages(content string, att *attachmentSet) (send, store provider.Message) {
+	send = provider.Message{Role: provider.RoleUser, Content: content}
+	if att.empty() {
+		return send, send
+	}
+	// The user's own words come first and are labelled by position: an
+	// attachment is wrapped in <attachment> tags precisely so the model can
+	// tell the difference between what the user said and what a file said.
+	text := content
+	if len(att.notes) > 0 {
+		text += "\n\n[boop] " + strings.Join(att.notes, "\n[boop] ")
+	}
+	lead := provider.ContentPart{Kind: provider.PartText, Text: text}
+
+	send.Parts = append([]provider.ContentPart{lead}, att.parts...)
+	store = provider.Message{
+		Role:    provider.RoleUser,
+		Content: content,
+		Parts:   append([]provider.ContentPart{lead}, att.stored...),
+	}
+	return send, store
 }
 
 // publishTurnError reports a background failure on the bus, because an async

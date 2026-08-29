@@ -9,6 +9,7 @@ import (
 
 	"github.com/kawaiipantsu/boop/internal/permissions"
 	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/stats"
 	"github.com/kawaiipantsu/boop/internal/tools"
 )
 
@@ -512,4 +513,47 @@ func TestLoopRetryBoundIsPerExactCall(t *testing.T) {
 	if tool.invoked != 3 {
 		t.Errorf("tool ran %d times, want 3 — three different commands are not retries", tool.invoked)
 	}
+}
+
+// Nothing wrote to the shared tracker before this, so /stats and /api/stats
+// reported an empty tracker no matter how much work had been done.
+func TestLoopRecordsUsageAndToolCalls(t *testing.T) {
+	tool := &recordingTool{
+		name:   "probe",
+		action: permissions.Action{Category: permissions.CatFilesystemRead, Risk: permissions.RiskLow},
+		result: tools.Result{Content: "ok"},
+	}
+	reg := tools.NewRegistry()
+	reg.Register(tool)
+
+	p := &scriptedProvider{turns: [][]provider.ChatEvent{
+		toolTurn("c1", "probe", `{}`),
+		textTurn("done"),
+	}}
+	loop := newLoop(t, p, reg, allowAll(), nil)
+	loop.Stats = stats.New()
+	loop.SessionID = "s1"
+
+	if _, err := loop.Run(context.Background(), []provider.Message{{Role: provider.RoleUser, Content: "q"}}); err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+
+	snap := loop.Stats.Snapshot()
+	if snap.Totals.Counters.ToolCalls != 1 {
+		t.Errorf("ToolCalls = %d, want 1", snap.Totals.Counters.ToolCalls)
+	}
+	if got := snap.Totals.Tokens.Measured.Total; got == 0 {
+		t.Error("no tokens recorded; the tracker has no producer again")
+	}
+	if _, ok := snap.Sessions["s1"]; !ok {
+		t.Errorf("usage was not attributed to the session (have %v)", keysOf(snap.Sessions))
+	}
+}
+
+func keysOf[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }

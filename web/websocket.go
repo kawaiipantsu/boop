@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -565,6 +566,19 @@ func (s *Server) dispatchClientMessage(c *wsClient, msg ClientMessageEnvelope) {
 			c.enqueueMessage(errorMessage(msg.ID, codeBadRequest, "`content` must not be empty"))
 			return
 		}
+		// Attachments are prepared before the turn starts so an unreadable
+		// file or an incapable model is reported on this socket rather than
+		// surfacing later as a bare error event (§27, §8).
+		attachments, err := s.prepareTurn(s.baseCtx, req, nil)
+		if err != nil {
+			var ae *attachmentError
+			code := codeBadRequest
+			if errors.As(err, &ae) {
+				code = ae.code
+			}
+			c.enqueueMessage(errorMessage(msg.ID, code, err.Error()))
+			return
+		}
 		sessionID, err := s.resolveSession(s.baseCtx, req.SessionID)
 		if err != nil {
 			c.enqueueMessage(errorMessage(msg.ID, codeInternal, err.Error()))
@@ -572,7 +586,7 @@ func (s *Server) dispatchClientMessage(c *wsClient, msg ClientMessageEnvelope) {
 		}
 		// Always asynchronous over the socket: the answer is the event
 		// stream, which is the whole reason this transport exists.
-		if _, err := s.startTurn(s.baseCtx, sessionID, req); err != nil {
+		if _, err := s.startTurn(s.baseCtx, sessionID, req, attachments); err != nil {
 			c.enqueueMessage(errorMessage(msg.ID, codeForTurnError(err), err.Error()))
 			return
 		}

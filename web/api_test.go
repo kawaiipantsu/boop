@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kawaiipantsu/boop/internal/app"
 	"github.com/kawaiipantsu/boop/internal/config"
 	"github.com/kawaiipantsu/boop/internal/permissions"
 	"github.com/kawaiipantsu/boop/internal/session"
@@ -499,79 +498,6 @@ func TestSessionLifecycle(t *testing.T) {
 	rec, body = doJSON(t, srv, http.MethodPost, "/api/session", sessionRequest{Resume: "does-not-exist"})
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("resuming an unknown session = %d, want 404 (body %s)", rec.Code, body)
-	}
-}
-
-// TestCreateAgent records a requested agent against the session and announces
-// it, so every frontend sees the same queue (§26).
-func TestCreateAgent(t *testing.T) {
-	application := newTestApp(t)
-	srv := newTestServer(t, func(o *Options) {
-		o.App = application
-		o.Config = application.Config
-	})
-
-	created := make(chan string, 4)
-	unsubscribe := application.Bus.Subscribe(func(ev app.Event) {
-		select {
-		case created <- ev.AgentID:
-		default:
-		}
-	}, app.EventAgentCreated)
-	t.Cleanup(unsubscribe)
-
-	rec, body := doJSON(t, srv, http.MethodPost, "/api/session", sessionRequest{})
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("create session: %d %s", rec.Code, body)
-	}
-
-	rec, body = doJSON(t, srv, http.MethodPost, "/api/agents", agentRequest{Name: "research", Task: "read the spec"})
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("POST /api/agents = %d (body %s)", rec.Code, body)
-	}
-	select {
-	case id := <-created:
-		if id == "" {
-			t.Error("agent.created carried no agent id")
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("no agent.created event was published")
-	}
-
-	rec, body = doJSON(t, srv, http.MethodGet, "/api/agents", nil)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /api/agents = %d (body %s)", rec.Code, body)
-	}
-	var list agentsResponse
-	if err := json.Unmarshal(body, &list); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if len(list.Agents) != 1 {
-		t.Fatalf("agents = %+v, want one", list.Agents)
-	}
-	if list.Agents[0].Task != "read the spec" {
-		t.Errorf("task = %q", list.Agents[0].Task)
-	}
-
-	rec, body = doJSON(t, srv, http.MethodPost, "/api/agents", agentRequest{Name: "empty"})
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("an agent without a task = %d, want 400 (body %s)", rec.Code, body)
-	}
-}
-
-// TestAgentsDisabled: the configuration switch must actually gate the API.
-func TestAgentsDisabled(t *testing.T) {
-	application := newTestApp(t)
-	cfg := *application.Config
-	cfg.Agents.Enabled = false
-	srv := newTestServer(t, func(o *Options) {
-		o.App = application
-		o.Config = &cfg
-	})
-	srv.setCurrentSession("some-session")
-	rec, body := doJSON(t, srv, http.MethodPost, "/api/agents", agentRequest{Task: "x"})
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("status = %d, want 409 (body %s)", rec.Code, body)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/kawaiipantsu/boop/internal/permissions"
 	"github.com/kawaiipantsu/boop/internal/provider"
 	"github.com/kawaiipantsu/boop/internal/session"
+	"github.com/kawaiipantsu/boop/internal/stats"
 	"github.com/kawaiipantsu/boop/internal/tools"
 )
 
@@ -25,6 +26,8 @@ type Loop struct {
 	Evaluator *permissions.Evaluator
 	Approver  permissions.Approver
 	Bus       *Bus
+	// Stats aggregates usage. Nil disables recording.
+	Stats *stats.Tracker
 
 	// MaxIterations bounds how many times the model may call tools within a
 	// single user turn, so a model that keeps calling tools cannot spin
@@ -39,6 +42,10 @@ type Loop struct {
 	// session eventually exceeds the window and fails on a request that
 	// could have succeeded.
 	Context *session.ContextManager
+	// Selected is the explicitly chosen files and tool output included in
+	// every request (§47). It lives here rather than being injected as a
+	// pseudo-message by each frontend, which is what happened before.
+	Selected *session.Selection
 	// MaxRetriesPerCommand bounds how many times the model may repeat an
 	// identical failing tool call within one turn. Retrying the same broken
 	// command is the most common way a repair loop wastes its budget.
@@ -113,6 +120,7 @@ func (l *Loop) Run(ctx context.Context, history []provider.Message) (*Turn, erro
 		turn.Usage.PromptTokens += usage.PromptTokens
 		turn.Usage.CompletionTokens += usage.CompletionTokens
 		turn.Usage.TotalTokens += usage.TotalTokens
+		l.record(usage, decision)
 
 		conversation = append(conversation, assistant)
 		turn.Messages = append(turn.Messages, assistant)
@@ -132,7 +140,8 @@ func (l *Loop) Run(ctx context.Context, history []provider.Message) (*Turn, erro
 				turn.Messages = append(turn.Messages, conversation[len(conversation)-1])
 				continue
 			}
-			result := l.invoke(ctx, call)
+			result := l.Invoke(ctx, call)
+			l.recordTool(call.Name, result)
 			if result.IsError {
 				l.failures[retryKey(call)]++
 			}
@@ -166,7 +175,9 @@ func (l *Loop) prompt(ctx context.Context, conversation []provider.Message) []pr
 	if len(rest) > 0 && rest[0].Role == provider.RoleSystem {
 		system, rest = rest[0].Content, rest[1:]
 	}
-	assembly, err := l.Context.Build(ctx, session.Input{SystemPrompt: system, History: rest})
+	assembly, err := l.Context.Build(ctx, session.Input{
+		SystemPrompt: system, History: rest, Selection: l.Selected,
+	})
 	if err != nil {
 		// A budget too small to hold the newest turn is a real problem, but
 		// failing the request outright is worse than sending it unbounded and
@@ -243,12 +254,19 @@ func (l *Loop) collect(ctx context.Context, events <-chan provider.ChatEvent) (p
 	return msg, calls, usage, nil
 }
 
-// invoke runs one tool call through the permission engine.
+// Invoke runs one tool call through the permission engine and returns the
+// result.
 //
-// Every outcome is a Result rather than an error, including a denial: the model
-// is told what happened so it can adapt, which is the whole point of returning
-// structured failures (§2.6).
-func (l *Loop) invoke(ctx context.Context, call tools.Call) tools.Result {
+// It is exported because frontends need it: a command a user types is the same
+// privileged action as one a model requests, and must pass the same gate. When
+// this was unexported the TUI reimplemented the classify, evaluate, approve,
+// execute sequence, which is a security-relevant sequence to keep two copies
+// of.
+//
+// Every outcome is a Result rather than an error, including a denial: the
+// caller is told what happened so it can adapt, which is the whole point of
+// returning structured failures (§2.6).
+func (l *Loop) Invoke(ctx context.Context, call tools.Call) tools.Result {
 	tool, ok := l.Tools.Get(call.Name)
 	if !ok {
 		return tools.Errorf(call, "no tool named %q is registered; available: %s",
@@ -317,6 +335,41 @@ func (l *Loop) retryExhausted(call tools.Call) (bool, string) {
 		"This exact %s call has already failed %d times in this turn and was not run again. "+
 			"Repeating it will not help — change the arguments, try a different approach, or "+
 			"explain what is blocking you.", call.Name, limit)
+}
+
+// record feeds a completed model call into the shared usage tracker.
+//
+// Without this nothing ever wrote to it, so /stats and /api/stats reported an
+// empty tracker no matter how much work had been done.
+func (l *Loop) record(usage provider.Usage, decision provider.Decision) {
+	if l.Stats == nil {
+		return
+	}
+	scope := stats.Scope{
+		SessionID: l.SessionID,
+		Provider:  decision.Target.Provider,
+		Model:     decision.Target.Model,
+	}
+	if scope.Provider == "" {
+		scope.Provider, scope.Model = l.Selection.Provider, l.Selection.Model
+	}
+	// Providers do not always report usage; a zero reading is unreported
+	// rather than a measurement of zero, and the tracker keeps that
+	// distinction rather than filing a guess as fact.
+	l.Stats.RecordModelCall(stats.ModelCall{Scope: scope, Usage: usage})
+}
+
+// recordTool feeds a completed tool call into the shared usage tracker.
+func (l *Loop) recordTool(name string, result tools.Result) {
+	if l.Stats == nil {
+		return
+	}
+	l.Stats.RecordToolCall(stats.ToolInvocation{
+		Scope:    stats.Scope{SessionID: l.SessionID},
+		Tool:     name,
+		Duration: result.Duration,
+		Failed:   result.IsError,
+	})
 }
 
 // emit publishes to the bus when one is attached.
