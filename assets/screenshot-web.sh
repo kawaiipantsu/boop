@@ -36,7 +36,7 @@ rm -rf "$CONFIG_DIR"; mkdir -p "$CONFIG_DIR"
 cat > "$CONFIG_DIR/config.yaml" <<EOF
 version: 1
 provider: ollama
-model: qwen2.5:7b
+model: llama3.1:8b
 execution:
   mode: confirm
 web:
