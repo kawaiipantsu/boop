@@ -1,0 +1,94 @@
+name: 🔌 Provider report
+description: Report how Boop behaved against a real model server — especially Lemonade or LM Studio.
+title: "provider: "
+labels: ["provider", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This is the single most useful report you can file.**
+
+        Only the **Ollama** adapter has been tested against a live server. The
+        **Lemonade** and **LM Studio** adapters were written against *inferred*
+        endpoints — the code marks them `INFERRED` at each declaration and has
+        never touched real hardware. If you have one running, one run tells us
+        more than a week of guessing.
+
+        Working is worth reporting too. "It just worked" turns a caveat into a
+        verified fact.
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - Lemonade
+        - LM Studio
+        - Ollama
+        - OpenAI
+        - Anthropic
+        - xAI
+        - Other OpenAI-compatible server
+    validations:
+      required: true
+
+  - type: input
+    id: server_version
+    attributes:
+      label: Server version
+      description: For a local server, its version. For a cloud provider, leave blank.
+      placeholder: "LM Studio 0.3.x / Ollama 0.31.2 / llama.cpp build 4xxx"
+
+  - type: input
+    id: model
+    attributes:
+      label: Model
+      placeholder: "qwen2.5-coder:14b"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: What happened
+      options:
+        - It worked
+        - It mostly worked, with problems
+        - It failed
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: features
+    attributes:
+      label: What did you exercise?
+      options:
+        - label: Listing models
+        - label: A plain chat turn
+        - label: Streaming
+        - label: Tool calling
+        - label: Loading or unloading a model
+        - label: Embeddings
+        - label: Vision / image input
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: What you saw
+      description: |
+        Paste the relevant output. `boop --no-tui -v "..."` shows tool activity,
+        and `--log-level debug` writes detail to the log file.
+        **Redact any API key before pasting.**
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: endpoints
+    attributes:
+      label: Endpoint corrections
+      description: |
+        If Boop called an endpoint that does not exist on your server, or missed
+        one that does, say which. This is exactly the correction the inferred
+        adapters need.
+      placeholder: "/api/v1/load returned 404; the real path is ..."

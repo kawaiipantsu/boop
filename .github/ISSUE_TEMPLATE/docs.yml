@@ -1,0 +1,40 @@
+name: 📚 Documentation
+description: Something in the docs is wrong, missing or misleading.
+title: "docs: "
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Documentation that describes behaviour the code does not have is worse
+        than no documentation — it gets believed. Those reports are especially
+        welcome.
+
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      placeholder: "docs/permissions.md, the precedence section / README install steps"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem
+      options:
+        - It is wrong — the code does something else
+        - It is missing
+        - It is confusing or ambiguous
+        - It is out of date
+        - Broken link or example that does not run
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: Details
+      description: What it says, what it should say, and how you found out.
+    validations:
+      required: true

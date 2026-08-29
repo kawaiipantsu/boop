@@ -1,4 +1,4 @@
-name: Bug report
+name: 🐛 Bug report
 description: Something in Boop does not behave the way it should.
 labels: ["bug", "needs-triage"]
 body:

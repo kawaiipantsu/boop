@@ -1,0 +1,67 @@
+name: 🧠 Model compatibility report
+description: Report how well a model drives Boop, to improve MODELS.md.
+title: "model: "
+labels: ["model-compat", "documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Boop is tool-driven, so a model that cannot emit reliable tool calls
+        cannot drive it — regardless of how well it writes code.
+
+        [MODELS.md](https://github.com/kawaiipantsu/boop/blob/main/MODELS.md)
+        carries measured reliability numbers. They come from a tiny sample and
+        would benefit enormously from yours.
+
+  - type: input
+    id: model
+    attributes:
+      label: Model and quantization
+      placeholder: "qwen2.5-coder:14b Q4_K_M"
+    validations:
+      required: true
+
+  - type: input
+    id: backend
+    attributes:
+      label: Backend
+      placeholder: "Ollama 0.31.2 / LM Studio / vLLM / llama.cpp"
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware
+      placeholder: "RTX 4090 24GB / M3 Max 64GB / CPU only"
+
+  - type: input
+    id: context
+    attributes:
+      label: Served context window
+      description: The value actually served, not the advertised one — `num_ctx` in Ollama.
+      placeholder: "32768"
+
+  - type: dropdown
+    id: reliability
+    attributes:
+      label: Tool-calling reliability
+      description: Roughly how often does it produce a real tool call rather than prose?
+      options:
+        - Always, or near enough
+        - Usually — occasional prose instead of a call
+        - Unreliable — fails often
+        - Never — emits JSON as text, or the server rejects tools
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: |
+        What did it do well or badly? Multi-step repair loops? Long context?
+        If you ran a repeatable check, paste the numbers.
+      placeholder: |
+        5 runs of "use the read tool to read notes.txt and count the lines":
+        5/5 produced a real tool call.

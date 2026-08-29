@@ -1,4 +1,4 @@
-name: Feature request
+name: ✨ Feature request
 description: Suggest a capability or a change to how Boop behaves.
 labels: ["enhancement", "needs-triage"]
 body:
