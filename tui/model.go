@@ -16,7 +16,6 @@ import (
 	"github.com/kawaiipantsu/boop/internal/permissions"
 	"github.com/kawaiipantsu/boop/internal/provider"
 	"github.com/kawaiipantsu/boop/internal/session"
-	"github.com/kawaiipantsu/boop/web"
 )
 
 // maxTranscriptEntries bounds transcript memory over a long session.
@@ -71,14 +70,6 @@ type (
 		isError  bool
 		err      error
 	}
-	// webStartedMsg carries the outcome of `/web on`.
-	webStartedMsg struct {
-		server *web.Server
-		url    string
-		err    error
-	}
-	// webStoppedMsg carries the outcome of `/web off`.
-	webStoppedMsg struct{ err error }
 	// tickMsg drives the elapsed-time readout.
 	tickMsg time.Time
 	// submitInitialMsg submits the prompt given on the command line.
@@ -146,10 +137,6 @@ type Model struct {
 	// selection is the explicitly chosen context behind /context add and
 	// /context clear (§47).
 	selection *session.Selection
-
-	// webServer is the WebUI started by /web on, nil when it is not running.
-	webServer *web.Server
-	webURL    string
 }
 
 // searchState is the Ctrl+R reverse history search.
@@ -238,12 +225,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case toolDoneMsg:
 		return m, m.finishToolRun(msg)
-
-	case webStartedMsg:
-		return m, m.webStarted(msg)
-
-	case webStoppedMsg:
-		return m, m.webStopped(msg)
 
 	case infoMsg:
 		for _, e := range msg.entries {
@@ -664,6 +645,5 @@ func (m *Model) shutdown() tea.Cmd {
 	if broker := m.broker(); broker != nil {
 		broker.Close()
 	}
-	m.stopWebServer()
 	return tea.Quit
 }

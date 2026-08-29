@@ -172,9 +172,13 @@ func (m *Model) agentStatusLine() string {
 	cfg := m.app.Config
 	c := m.fleet
 	if c == nil {
-		return fmt.Sprintf("off (enabled=%t max=%d)", cfg.Agents.Enabled, cfg.Agents.Max)
+		// No fleet has been built yet, so nothing is running whatever the
+		// configuration says; report the setting rather than inventing state.
+		if cfg.Agents.Enabled {
+			return fmt.Sprintf("enabled, none started (max=%d)", cfg.Agents.Max)
+		}
+		return fmt.Sprintf("off — agents.enabled = false (max=%d)", cfg.Agents.Max)
 	}
 	snap := c.Snapshot()
-	return fmt.Sprintf("%s · %d known (%d complete, %d failed, %d cancelled)",
-		snap.Summary(), snap.Total, snap.Complete, snap.Failed, snap.Cancelled)
+	return fmt.Sprintf("%s · %d cancelled · %d known", snap.Summary(), snap.Cancelled, snap.Total)
 }

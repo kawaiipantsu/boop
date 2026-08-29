@@ -62,7 +62,8 @@ type commandStatus int
 const (
 	// cmdReady is fully implemented here.
 	cmdReady commandStatus = iota
-	// cmdPending needs a subsystem that is not wired into the TUI yet.
+	// cmdPending needs a subsystem that does not exist yet, and says so
+	// rather than doing nothing.
 	cmdPending
 )
 
@@ -111,7 +112,7 @@ var commandSpecs = []commandSpec{
 
 	{Name: "session", Args: "[new|list|save <title>|load <id>]", Summary: "manage sessions", Status: cmdReady},
 
-	{Name: "web", Args: "[on|off]", Summary: "start or stop the local WebUI", Status: cmdReady},
+	{Name: "web", Args: "[on|off]", Summary: "report the local WebUI's address and how to start it", Status: cmdReady},
 
 	{Name: "clear", Summary: "clear the transcript, keep the conversation", Status: cmdReady},
 	{Name: "reset", Summary: "clear the transcript and start a fresh session", Status: cmdReady},

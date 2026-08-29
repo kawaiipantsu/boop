@@ -269,14 +269,13 @@ func (m *Model) modeName() string {
 	return string(m.app.Config.Execution.Mode)
 }
 
-func (m *Model) agentCount() int {
-	if m.app == nil || m.app.Config == nil || !m.app.Config.Agents.Enabled {
-		return 0
-	}
-	// The scheduler is not wired to the TUI yet, so the honest count is zero
-	// running agents; the configured ceiling is shown by /status.
-	return 0
-}
+// agentCount is the number of agents currently occupying a concurrency slot.
+//
+// It reads the cached figure rather than snapshotting the coordinator: View
+// runs on every keystroke and must not mutate the model or copy the fleet.
+// syncAgentCount refreshes it on the clock tick and on every agent event, so
+// the header is at most one second behind (§19).
+func (m *Model) agentCount() int { return m.agentsActive }
 
 func (m *Model) networkOn() bool {
 	return m.app != nil && m.app.Config != nil && m.app.Config.Network.Enabled

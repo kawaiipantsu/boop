@@ -123,8 +123,7 @@ func (m *Model) resetConversation() tea.Cmd {
 	if m.app == nil {
 		return m.say(EntrySystem, "conversation reset")
 	}
-	m.say(EntrySystem, "conversation reset; opening a fresh session…")
-	return m.newSessionCmd()
+	return m.newSessionCmd("everything before this point has been forgotten")
 }
 
 // ---------------------------------------------------------------------------
@@ -255,12 +254,23 @@ func onOff(v bool) string {
 // Commands that reach into the runtime
 // ---------------------------------------------------------------------------
 
-// tokensCmd reports both this process's counters and the persisted totals.
+// tokensCmd reports this process's counters, the shared tracker and the
+// persisted totals, which are three different facts and are labelled as such.
 func (m *Model) tokensCmd() tea.Cmd {
 	live := fmt.Sprintf("this session (live)\n  prompt %d · output %d · total %d",
 		m.stats.Prompt, m.stats.Completion, m.stats.Total)
 	if m.app == nil {
 		return m.say(EntrySystem, live)
+	}
+	if m.app.Stats != nil {
+		snap := m.app.Stats.Snapshot()
+		agg, ok := snap.Sessions[m.sessionID]
+		if !ok {
+			agg = snap.Totals
+		}
+		if !agg.Tokens.Approximate().IsZero() {
+			live += "\n\nshared tracker\n  " + tokenLine(agg.Tokens)
+		}
 	}
 	sessions, id := m.app.Sessions, m.sessionID
 	return func() tea.Msg {
@@ -461,7 +471,7 @@ func (m *Model) sessionCmd(cmd Command) tea.Cmd {
 		return m.say(EntrySystem, fmt.Sprintf("session %s\ntitle: %s\nsubcommands: new, list, save <title>, load <id>",
 			m.sessionID, orDefault(m.sessionTitle, "(untitled)")))
 	case "new":
-		return m.newSessionCmd()
+		return m.newSessionCmd("")
 	case "list":
 		return m.listSessionsCmd()
 	case "save":
@@ -476,7 +486,9 @@ func (m *Model) sessionCmd(cmd Command) tea.Cmd {
 	}
 }
 
-func (m *Model) newSessionCmd() tea.Cmd {
+// newSessionCmd opens a fresh session record and switches to it. The note, when
+// given, is shown under the confirmation — /reset uses it to say what was lost.
+func (m *Model) newSessionCmd(note string) tea.Cmd {
 	application := m.app
 	system := m.systemMessage()
 	return func() tea.Msg {
@@ -490,10 +502,14 @@ func (m *Model) newSessionCmd() tea.Cmd {
 		if err != nil {
 			return infoMsg{entries: []Entry{{Kind: EntryError, Text: "could not start a session: " + err.Error()}}}
 		}
+		text := "started session " + sess.ID
+		if note != "" {
+			text += "\n" + note
+		}
 		return sessionSwitchedMsg{
 			id:      sess.ID,
 			history: system,
-			entries: []Entry{{Kind: EntrySystem, Text: "started session " + sess.ID}},
+			entries: []Entry{{Kind: EntrySystem, Text: text}},
 		}
 	}
 }
@@ -612,4 +628,50 @@ func orDefault(s, fallback string) string {
 		return fallback
 	}
 	return s
+}
+
+// ---------------------------------------------------------------------------
+// /web
+// ---------------------------------------------------------------------------
+
+// webCmd reports where the WebUI is configured to run and how to start it.
+//
+// It deliberately does not start or stop a server. The WebUI is a peer
+// frontend over the same runtime, not a subsystem of this one: `boop --web`
+// owns a process, a signal handler and a shutdown sequence of its own, and a
+// server whose lifetime is a slash command would outlive or predecease the
+// terminal that spawned it in ways neither side can reason about. Reporting
+// the address honestly is more useful than a half-owned listener (§22, §58).
+func (m *Model) webCmd(cmd Command) tea.Cmd {
+	if m.app == nil || m.app.Config == nil {
+		return m.say(EntryError, "no runtime is attached")
+	}
+	switch cmd.Arg(0) {
+	case "", "show", "status":
+		return m.say(EntrySystem, m.webText())
+	case "on", "off":
+		return m.say(EntrySystem, m.webText())
+	default:
+		return m.say(EntryError, "usage: /web [on|off]")
+	}
+}
+
+// webText describes the configured WebUI.
+func (m *Model) webText() string {
+	cfg := m.app.Config
+	var b strings.Builder
+	b.WriteString("the WebUI is a separate process; this terminal does not start one\n")
+	fmt.Fprintf(&b, "  configured  http://%s:%d\n", cfg.Web.Listen, cfg.Web.Port)
+	fmt.Fprintf(&b, "  enabled     %t\n", cfg.Web.Enabled)
+	fmt.Fprintf(&b, "  auth        %s\n", onOff(cfg.Web.Auth.Enabled))
+	b.WriteString("  start it with `boop --web` (add --listen/--port to override)\n")
+	b.WriteString("  it shares the same store, so a session started here can be opened there")
+	return b.String()
+}
+
+// webStatusLine is the /status row for the WebUI.
+func (m *Model) webStatusLine() string {
+	cfg := m.app.Config
+	return fmt.Sprintf("not served from this process (%s:%d, enabled=%t) — run `boop --web`",
+		cfg.Web.Listen, cfg.Web.Port, cfg.Web.Enabled)
 }
