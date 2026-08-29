@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"github.com/boop-dev/boop/internal/webclient"
 	"io"
 	"net"
 	"net/http"
@@ -61,8 +62,15 @@ func TestHTTPToolSuccessfulRequest(t *testing.T) {
 	if data.StatusCode != 200 || data.BodyBytes == 0 {
 		t.Errorf("unexpected structured data: %+v", data)
 	}
-	if !strings.Contains(data.Body, "boop/") {
+	// The tool must identify itself, and must do so with the same agent
+	// string every other outbound request uses, so a site operator sees one
+	// recognisable client rather than several.
+	if !strings.Contains(strings.ToLower(data.Body), "boop") {
 		t.Errorf("the tool should identify itself with a User-Agent: %s", data.Body)
+	}
+	if !strings.Contains(data.Body, webclient.DefaultUserAgent()) {
+		t.Errorf("User-Agent should be the shared default %q, got body %s",
+			webclient.DefaultUserAgent(), data.Body)
 	}
 }
 

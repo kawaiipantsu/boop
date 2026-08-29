@@ -16,6 +16,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/boop-dev/boop/internal/permissions"
+
+	"github.com/boop-dev/boop/internal/webclient"
 )
 
 // ErrBlockedAddress reports a request refused by the SSRF guard.
@@ -79,7 +81,9 @@ type HTTPTool struct {
 	// AllowPrivateNetworks opts in to private, loopback and link-local
 	// destinations for local development. Cloud metadata stays blocked.
 	AllowPrivateNetworks bool
-	// UserAgent identifies boop to servers.
+	// UserAgent identifies Boop to servers. It defaults to the same
+	// RFC 9110 product token webclient sends, so every outbound request
+	// Boop makes is attributable to one recognisable agent.
 	UserAgent string
 
 	once      sync.Once
@@ -93,7 +97,7 @@ func NewHTTPTool() *HTTPTool {
 		MaxTimeout:       5 * time.Minute,
 		MaxResponseBytes: DefaultMaxResponseBytes,
 		MaxRedirects:     DefaultMaxRedirects,
-		UserAgent:        "boop/1 (+https://github.com/boop-dev/boop)",
+		UserAgent:        webclient.DefaultUserAgent(),
 	}
 }
 
