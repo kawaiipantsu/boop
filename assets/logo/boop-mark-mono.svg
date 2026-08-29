@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Single-colour mark for stamps, embroidery, favicons and anywhere the
+     gradient cannot survive. Uses currentColor so CSS can drive it. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Boop">
+  <title>Boop</title>
+  <rect x="0" y="0" width="512" height="512" rx="116" ry="116" fill="none"
+        stroke="currentColor" stroke-width="34"/>
+  <path d="M 168 178 L 246 256 L 168 334" fill="none" stroke="currentColor" stroke-width="42"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="282" y="320" width="106" height="28" rx="14" fill="currentColor"/>
+</svg>

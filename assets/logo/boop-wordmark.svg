@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Boop wordmark. Geometric construction: four bowls on a shared baseline,
+     b and p differing only in whether the stem runs up or down. Advance is
+     136 against an outer bowl diameter of 116, leaving a 20px counter-gap so
+     adjacent bowls read as separate letters. No font dependency. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-25 -85 625 270" width="625" height="270" role="img" aria-label="boop">
+  <title>boop</title>
+  <g fill="none" stroke="#0B1020" stroke-width="26" stroke-linecap="round">
+    <path d="M 15 -55 L 15 95"/>
+    <circle cx="60" cy="50" r="45"/>
+    <circle cx="196" cy="50" r="45"/>
+    <circle cx="332" cy="50" r="45"/>
+    <circle cx="468" cy="50" r="45"/>
+    <path d="M 423 5 L 423 155"/>
+  </g>
+  <circle cx="556" cy="95" r="16" fill="#FBBF24"/>
+</svg>
