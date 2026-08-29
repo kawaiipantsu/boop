@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/kawaiipantsu/boop/internal/agent"
 	"github.com/kawaiipantsu/boop/internal/app"
 	"github.com/kawaiipantsu/boop/internal/config"
 	"github.com/kawaiipantsu/boop/internal/permissions"
@@ -51,6 +52,15 @@ func runPlainCLI(ctx context.Context, opts options, stdout, stderr io.Writer) er
 	})
 	if err != nil {
 		return fmt.Errorf("cannot start a session: %w", err)
+	}
+
+	// Delegation is registered here rather than in BuildTools: the fleet
+	// builds on app.Loop, so a delegate tool inside internal/tools would close
+	// an import cycle. Registering it only when a fleet exists also means the
+	// model is never offered a tool that would refuse.
+	if fleet := agent.NewFromApp(application, sess.ID); fleet != nil {
+		application.Tools.Register(agent.NewDelegateTool(fleet))
+		defer fleet.StopAll()
 	}
 
 	var memory string
