@@ -1,0 +1,24 @@
+{
+  "name": "boop-webui",
+  "version": "0.1.0-dev",
+  "private": true,
+  "description": "Boop local WebUI frontend. Built to web/frontend/dist and copied into web/static/dist for embedding in the Go binary.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node test.mjs",
+    "check": "npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "18.19.50",
+    "esbuild": "0.21.5",
+    "jsdom": "24.1.3",
+    "typescript": "5.4.5"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}

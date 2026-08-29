@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kawaiipantsu/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/logging"
 	"github.com/kawaiipantsu/boop/internal/provider"
 	"github.com/kawaiipantsu/boop/internal/provider/anthropic"
 	"github.com/kawaiipantsu/boop/internal/provider/lemonade"
@@ -30,6 +31,12 @@ func BuildProvider(name string, pc config.ProviderConfig, httpClient *http.Clien
 	apiKey, err := config.ResolveAPIKey(pc)
 	if err != nil && requiresKey(pc.Type) {
 		return nil, fmt.Errorf("provider %q: %w", name, err)
+	}
+	// Tell the log redactor the exact credential value. Shape-based detection
+	// catches sk- and similar, but a self-hosted gateway key can be an
+	// ordinary-looking word that no pattern would ever match (§45).
+	if apiKey != "" {
+		logging.RegisterSecret(apiKey)
 	}
 
 	switch strings.ToLower(strings.TrimSpace(pc.Type)) {

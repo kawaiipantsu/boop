@@ -1,0 +1,96 @@
+name: Feature request
+description: Suggest a capability or a change to how Boop behaves.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before you write this up, two things worth checking:
+
+        - **[PROJECT.md](https://github.com/kawaiipantsu/boop/blob/main/PROJECT.md)**
+          is the authoritative specification. Your idea may already be
+          specified and waiting on a milestone (§59), or it may be an explicit
+          non-goal (§63): plugin marketplace, hosted service, cloud accounts,
+          multi-user internet-facing WebUI, IDE integrations, mobile app,
+          Kubernetes operator.
+        - **[docs/architecture.md](https://github.com/kawaiipantsu/boop/blob/main/docs/architecture.md)**
+          lists what is built and what is under construction.
+
+        Neither of those disqualifies an idea. It just changes the
+        conversation, and knowing up front saves us both time.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: |
+        Describe the situation, not the solution. What were you doing, what got
+        in the way, and what did you do instead?
+      placeholder: |
+        I run two Ollama hosts and I want Boop to prefer the fast one but fall
+        back to the other when it is busy. Today I edit config.yaml by hand.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like Boop to do?
+      description: Be concrete. If it is a config key, show the YAML. If it is a flag, show the command line. If it is an interface change, sketch it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What else did you consider?
+      description: Including "do nothing". Knowing which alternatives you rejected, and why, is usually the most useful part of a request.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area does this touch?
+      options:
+        - Not sure
+        - Configuration
+        - Providers / a new adapter
+        - Model routing and fallback
+        - Permissions / approvals
+        - Tools
+        - Agents / scheduling
+        - Sessions / storage / statistics
+        - Project memory / Boop.md
+        - Plain CLI
+        - TUI
+        - WebUI
+        - Native GUI
+        - Build / packaging / release
+        - Documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: spec
+    attributes:
+      label: Relevant PROJECT.md sections
+      description: If you found sections that bear on this — supporting or contradicting — cite them. If your idea needs the spec changed, say so; that is allowed, it is just a deliberate act.
+      placeholder: "§9 covers routing classes but not per-class fallback ordering."
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Does this fit the project's constraints?
+      description: Tick what you have thought about. Unticked boxes are fine — they are prompts, not requirements.
+      options:
+        - label: It does not require cgo (six cross-compile targets are a hard requirement).
+        - label: It does not require a new heavy dependency.
+        - label: It keeps the core UI-independent — no business logic in a frontend.
+        - label: It does not weaken the permission engine or the workspace boundary.
+        - label: It works, or degrades gracefully, with a local provider and no internet.
+
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Would you like to implement it?
+      options:
+        - label: I would be willing to open a pull request for this.

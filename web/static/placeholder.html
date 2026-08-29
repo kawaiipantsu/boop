@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boop WebUI</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    font: 15px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: #12131a; color: #e6e6ef;
+  }
+  main { max-width: 46rem; padding: 2rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+  p.sub { margin: 0 0 1.5rem; opacity: .65; }
+  pre {
+    background: #1c1e28; border: 1px solid #2c2f3d; border-radius: 6px;
+    padding: .85rem 1rem; overflow-x: auto;
+  }
+  code { color: #9fe6b5; }
+  ul { padding-left: 1.2rem; }
+  a { color: #7fb8ff; }
+  footer { margin-top: 2rem; opacity: .5; font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>boop &mdash; WebUI</h1>
+  <p class="sub">The server is running, but no frontend bundle is embedded in this binary.</p>
+
+  <p>Build the bundle and rebuild the binary:</p>
+  <pre><code>make web-build
+make build</code></pre>
+
+  <p>The API is live regardless of the frontend. Useful endpoints:</p>
+  <ul>
+    <li><code>GET /api/status</code> &mdash; runtime health and build metadata</li>
+    <li><code>GET /api/config</code> &mdash; configuration with secrets redacted</li>
+    <li><code>GET /api/events</code> &mdash; WebSocket event stream</li>
+  </ul>
+
+  <footer>Boop is a local-first tool. Do not expose this interface to the public Internet
+  without a reverse proxy that terminates TLS and authenticates callers.</footer>
+</main>
+</body>
+</html>

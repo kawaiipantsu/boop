@@ -196,6 +196,23 @@ func (c *Config) validateRouting() []error {
 
 // validateLogging checks the log level.
 func (c *Config) validateLogging() []error {
+	var formatErrs []error
+	switch strings.ToLower(strings.TrimSpace(c.Logging.Format)) {
+	case "", "text", "json":
+	default:
+		formatErrs = append(formatErrs, fmt.Errorf("logging.format: %q is not valid (want text or json)", c.Logging.Format))
+	}
+	if c.Logging.MaxSizeMB < 0 {
+		formatErrs = append(formatErrs, fmt.Errorf("logging.max_size_mb: must not be negative, got %d", c.Logging.MaxSizeMB))
+	}
+	if c.Logging.MaxBackups < 0 {
+		formatErrs = append(formatErrs, fmt.Errorf("logging.max_backups: must not be negative, got %d", c.Logging.MaxBackups))
+	}
+	return append(formatErrs, c.validateLogLevel()...)
+}
+
+// validateLogLevel checks the configured level name.
+func (c *Config) validateLogLevel() []error {
 	for _, lvl := range LogLevels {
 		if c.Logging.Level == lvl {
 			return nil

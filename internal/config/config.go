@@ -154,6 +154,14 @@ type LoggingConfig struct {
 	Level string `yaml:"level" json:"level"`
 	// File overrides the platform-default log location when set.
 	File string `yaml:"file,omitempty" json:"file,omitempty"`
+	// Format is text or json. Text is for humans reading a log file; json
+	// is for anything shipping logs somewhere that parses them.
+	Format string `yaml:"format" json:"format"`
+	// MaxSizeMB is the size at which the log file rotates. A long-running
+	// agent runtime must not be able to fill a disk.
+	MaxSizeMB int `yaml:"max_size_mb" json:"max_size_mb"`
+	// MaxBackups is how many rotated files are kept.
+	MaxBackups int `yaml:"max_backups" json:"max_backups"`
 }
 
 // Duration is a time.Duration that marshals as a human string ("300s") in YAML

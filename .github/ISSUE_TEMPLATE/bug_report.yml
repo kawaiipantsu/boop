@@ -1,0 +1,150 @@
+name: Bug report
+description: Something in Boop does not behave the way it should.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report.
+
+        **Not a bug — a security vulnerability?** Do not file it here. See
+        [SECURITY.md](https://github.com/kawaiipantsu/boop/blob/main/SECURITY.md)
+        for the private reporting channel.
+
+        Boop is pre-1.0 and several subsystems are still being built. `boop`
+        with no flags, and `boop --gui`, currently report which milestone they
+        belong to — that is expected, not a bug.
+
+  - type: textarea
+    id: version
+    attributes:
+      label: boop version
+      description: Paste the complete output of `boop version`. All of it — the Go version and platform matter.
+      render: text
+      placeholder: |
+        boop v0.1.0-dev
+        commit: b7829b9
+        built:  2026-08-29T16:42:47Z
+        go:     go1.25.0
+        os/arch: linux/amd64
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: Distribution and version, or macOS/Windows version. Include the terminal if the problem is visual.
+      placeholder: "Debian 12 (kernel 6.1), GNOME Terminal"
+    validations:
+      required: true
+
+  - type: input
+    id: install
+    attributes:
+      label: How did you get this binary?
+      placeholder: "make build from source at commit b7829b9 / release archive boop_0.1.0_linux_amd64.tar.gz"
+    validations:
+      required: true
+
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and model
+      description: Which backend and which model. Include the server version if it is a local one.
+      placeholder: "ollama 0.31.2, qwen2.5:7b"
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: |
+        Your `config.yaml` **with secrets removed**. Replace credential values;
+        do not truncate them. Note that `api_key_env` holds the *name* of an
+        environment variable, so it is safe to include as-is.
+
+        Linux: `~/.config/boop/config.yaml` ·
+        macOS: `~/Library/Application Support/boop/config.yaml` ·
+        Windows: `%AppData%\boop\config.yaml`
+      render: yaml
+      placeholder: |
+        provider: ollama
+        model: qwen2.5:7b
+        execution:
+          mode: confirm
+        providers:
+          ollama:
+            type: ollama
+            base_url: http://127.0.0.1:11434
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The exact command you ran, and the prompt if there was one. The smallest case that still shows the problem.
+      placeholder: |
+        1. BOOP_CONFIG_DIR=/tmp/boop-test ./boop --no-tui -v "read notes.txt and count the lines"
+        2. Approve the read when prompted
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened
+      description: Include the full error and any relevant output. Re-run with `-v` if you can — it reports tool activity and timings on stderr.
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area does this affect?
+      description: Best guess is fine.
+      options:
+        - Not sure
+        - Configuration
+        - Providers / model connectivity
+        - Permissions / approvals
+        - Tools (read, write, edit, run, git, test, build)
+        - Network tools (http, fetch, websearch)
+        - Sessions / storage
+        - Project memory / Boop.md
+        - Plain CLI
+        - TUI
+        - WebUI
+        - Build / cross-compilation / release
+        - Documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Workarounds you found, when it started, related issues.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this has not been reported.
+          required: true
+        - label: I removed every secret from the configuration and output above.
+          required: true
+        - label: This is not a security vulnerability (those go through SECURITY.md).
+          required: true

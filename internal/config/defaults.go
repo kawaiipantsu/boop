@@ -75,7 +75,10 @@ func Default() *Config {
 		Network:   DefaultNetwork(),
 		Providers: DefaultProviders(),
 		Logging: LoggingConfig{
-			Level: DefaultLogLevel,
+			Level:      DefaultLogLevel,
+			Format:     DefaultLogFormat,
+			MaxSizeMB:  DefaultLogMaxSizeMB,
+			MaxBackups: DefaultLogMaxBackups,
 		},
 	}
 	c.Permissions = DefaultPermissions()
@@ -100,6 +103,17 @@ const (
 	DefaultSafeSearch = "moderate"
 	// DefaultSearchRegion is DuckDuckGo's no-region code.
 	DefaultSearchRegion = "wt-wt"
+)
+
+// Logging defaults.
+const (
+	// DefaultLogFormat is text: the log is read by a person far more often
+	// than it is shipped to a parser.
+	DefaultLogFormat = "text"
+	// DefaultLogMaxSizeMB is the rotation threshold.
+	DefaultLogMaxSizeMB = 10
+	// DefaultLogMaxBackups is how many rotated files are retained.
+	DefaultLogMaxBackups = 5
 )
 
 // DefaultNetwork returns the outbound web access defaults.
