@@ -120,7 +120,9 @@ func TestRunToolPermissionRequiresCommand(t *testing.T) {
 
 func TestRunToolPermissionUsesInjectedClassifier(t *testing.T) {
 	tool := NewRunTool(&execFakeExecutor{}, execTestWorkspace(t))
-	tool.Classify = func(string) permissions.Risk { return permissions.RiskCritical }
+	tool.Classify = func(string) permissions.Classification {
+		return permissions.Classification{Category: permissions.CatShellExecute, Risk: permissions.RiskCritical}
+	}
 	action, err := tool.Permission(execTestCall(t, "run", execRunArgs{Command: "ls"}))
 	if err != nil {
 		t.Fatalf("Permission: %v", err)
@@ -367,7 +369,7 @@ func TestDefaultRiskClassifier(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.command, func(t *testing.T) {
-			if got := DefaultRiskClassifier(tc.command); got != tc.want {
+			if got := DefaultRiskClassifier(tc.command).Risk; got != tc.want {
 				t.Errorf("DefaultRiskClassifier(%q) = %q, want %q", tc.command, got, tc.want)
 			}
 		})

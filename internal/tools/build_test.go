@@ -136,7 +136,9 @@ func TestBuildToolPermission(t *testing.T) {
 		t.Errorf("tool = %q", action.Tool)
 	}
 
-	tool.Classify = func(string) permissions.Risk { return permissions.RiskLow }
+	tool.Classify = func(string) permissions.Classification {
+		return permissions.Classification{Category: permissions.CatShellExecute, Risk: permissions.RiskLow}
+	}
 	action, err = tool.Permission(execTestCall(t, "build", execTaskArgs{}))
 	if err != nil {
 		t.Fatalf("Permission: %v", err)

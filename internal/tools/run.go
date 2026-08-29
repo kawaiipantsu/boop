@@ -32,7 +32,7 @@ const DefaultMaxOutputLines = 400
 // It exists as a function type so the conservative built-in heuristic can be
 // replaced by the permission engine's full classifier without changing any
 // tool.
-type RiskClassifier func(command string) permissions.Risk
+type RiskClassifier func(command string) permissions.Classification
 
 // RunTool executes a shell command and returns its full structured outcome.
 //
@@ -133,13 +133,19 @@ func (t *RunTool) Permission(call Call) (permissions.Action, error) {
 		return permissions.Action{}, fmt.Errorf("run: command is required")
 	}
 	dir := t.execWorkingDirLabel(args.WorkingDir)
+	// The classifier decides the category as well as the risk: a command run
+	// through this tool may mechanically be a git push or a production
+	// change, and reporting everything as shell.execute would apply the
+	// wrong rule and silently drop the production gate.
+	cls := t.execClassify(command)
 	return permissions.Action{
-		Category: permissions.CatShellExecute,
-		Risk:     t.execClassify(command),
-		Tool:     t.Name(),
-		Summary:  fmt.Sprintf("Run in %s: %s", dir, execSummarize(command, 120)),
-		Detail:   command,
-		Paths:    []string{dir},
+		Category:   cls.Category,
+		Risk:       cls.Risk,
+		Tool:       t.Name(),
+		Summary:    fmt.Sprintf("Run in %s: %s", dir, execSummarize(command, 120)),
+		Detail:     command,
+		Paths:      []string{dir},
+		Production: cls.Production,
 	}, nil
 }
 
@@ -196,7 +202,7 @@ func (t *RunTool) Execute(ctx context.Context, call Call) (Result, error) {
 
 // execClassify applies the configured classifier, defaulting to the
 // conservative built-in.
-func (t *RunTool) execClassify(command string) permissions.Risk {
+func (t *RunTool) execClassify(command string) permissions.Classification {
 	if t.Classify != nil {
 		return t.Classify(command)
 	}
@@ -447,25 +453,25 @@ var (
 // escalate to high or critical, a small allowlist of read-only commands drops
 // to low, and everything else stays at medium. It is a safety net, not a
 // sandbox — replace it with the permission engine's classifier when available.
-func DefaultRiskClassifier(command string) permissions.Risk {
+func DefaultRiskClassifier(command string) permissions.Classification {
 	c := strings.TrimSpace(command)
 	if c == "" {
-		return permissions.RiskMedium
+		return permissions.Classification{Category: permissions.CatShellExecute, Risk: permissions.RiskMedium}
 	}
 	for _, re := range execCriticalPatterns {
 		if re.MatchString(c) {
-			return permissions.RiskCritical
+			return permissions.Classification{Category: permissions.CatShellExecute, Risk: permissions.RiskCritical}
 		}
 	}
 	for _, re := range execHighPatterns {
 		if re.MatchString(c) {
-			return permissions.RiskHigh
+			return permissions.Classification{Category: permissions.CatShellExecute, Risk: permissions.RiskHigh}
 		}
 	}
 	if execIsReadOnlyCommand(c) {
-		return permissions.RiskLow
+		return permissions.Classification{Category: permissions.CatShellExecute, Risk: permissions.RiskLow}
 	}
-	return permissions.RiskMedium
+	return permissions.Classification{Category: permissions.CatShellExecute, Risk: permissions.RiskMedium}
 }
 
 // execShellSeparators splits a command line into pipeline segments. It is a

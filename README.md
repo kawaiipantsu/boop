@@ -1,6 +1,11 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=220&section=header&text=Boop&fontSize=90&fontColor=ffffff&fontAlignY=36&animation=fadeIn&desc=Local-first%20AI%20client%20%26%20agent%20runtime&descSize=18&descAlign=50&descAlignY=57" width="100%" alt="Boop" />
+<!-- Banner generated with capsule-render and committed as a PNG so the README
+     never depends on a third-party service being up. To regenerate:
+     https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=220&section=header&text=Boop&fontSize=90&fontColor=ffffff&fontAlignY=36&desc=Local-first%20AI%20client%20and%20agent%20runtime&descSize=18&descAlign=50&descAlignY=57
+     Keep "and" rather than "&" in desc: capsule-render writes the character
+     into the SVG unescaped, which makes it malformed XML and GitHub drops it. -->
+<img src=".github/assets/header.png" width="100%" alt="Boop — local-first AI client and agent runtime" />
 
 **Not a chat frontend — an AI execution environment.**
 
@@ -444,6 +449,6 @@ BOOP_NETWORK_TESTS=1 go test ./internal/webclient/... -run Live -v
 
 <sub>Built to run on your machine, with your models, under your rules.</sub>
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=120&section=footer" width="100%" alt="" />
+<img src=".github/assets/footer.png" width="100%" alt="" />
 
 </div>

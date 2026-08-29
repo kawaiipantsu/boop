@@ -175,13 +175,18 @@ func execTaskPermission(tool string, ws *Workspace, kind execTaskKind, args exec
 	if classify == nil {
 		classify = DefaultRiskClassifier
 	}
+	// A project's own test or build command is still an arbitrary command
+	// line, so it is classified like any other rather than trusted for
+	// being called "test".
+	cls := classify(command)
 	return permissions.Action{
-		Category: permissions.CatShellExecute,
-		Risk:     classify(command),
-		Tool:     tool,
-		Summary:  fmt.Sprintf("Run %s (%s) in %s: %s", kind, origin, dir, execSummarize(command, 100)),
-		Detail:   command,
-		Paths:    []string{dir},
+		Category:   cls.Category,
+		Risk:       cls.Risk,
+		Tool:       tool,
+		Summary:    fmt.Sprintf("Run %s (%s) in %s: %s", kind, origin, dir, execSummarize(command, 100)),
+		Detail:     command,
+		Paths:      []string{dir},
+		Production: cls.Production,
 	}, nil
 }
 
