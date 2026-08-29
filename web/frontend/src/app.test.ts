@@ -126,6 +126,22 @@ describe('mounted app', () => {
     assert.deepEqual(labels, ['Chat', 'Agents', 'Tools', 'Models', 'Sessions', 'Statistics', 'Settings']);
   });
 
+  it('shows exactly one panel at a time', async () => {
+    const panels = Array.from(root.querySelectorAll('[role="tabpanel"]')) as HTMLElement[];
+    assert.equal(panels.length, 7);
+    assert.deepEqual(
+      panels.filter((p) => !p.hidden).map((p) => p.id),
+      ['panel-chat'],
+    );
+    const tabs = Array.from(root.querySelectorAll('[role="tab"]')) as HTMLButtonElement[];
+    (tabs.find((t) => t.textContent === 'Statistics') as HTMLButtonElement).click();
+    await flush();
+    assert.deepEqual(
+      panels.filter((p) => !p.hidden).map((p) => p.id),
+      ['panel-stats'],
+    );
+  });
+
   it('reads /api/status on boot and fills the header', async () => {
     assert.ok(calls.some((c) => c.url === '/api/status'));
     assert.match(text(), /ollama/);

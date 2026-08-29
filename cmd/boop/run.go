@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/kawaiipantsu/boop/internal/version"
+	"github.com/kawaiipantsu/boop/tui"
 )
 
 // options holds the parsed command-line startup configuration.
@@ -112,7 +113,18 @@ func dispatch(opts options, stdout, stderr io.Writer) error {
 	case opts.noTUI:
 		return runPlainCLI(context.Background(), opts, stdout, stderr)
 	default:
-		return fmt.Errorf("TUI is not implemented yet (milestone 3); try `boop version`")
+		cfg, err := loadConfig(opts)
+		if err != nil {
+			return err
+		}
+		// The TUI builds its own runtime: app.New needs an Approver at
+		// construction, and the terminal UI is the thing that can serve one.
+		return tui.Run(context.Background(), tui.Options{
+			Config:        cfg,
+			InitialPrompt: opts.prompt,
+			Stderr:        stderr,
+			Verbose:       opts.verbose,
+		})
 	}
 }
 

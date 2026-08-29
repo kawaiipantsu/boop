@@ -337,10 +337,21 @@ func TestDefaultRulesAndNewPolicy(t *testing.T) {
 		CatGitCommit:        RuleConfirm,
 		CatGitPush:          RuleConfirm,
 		CatNetworkHTTP:      RuleConfirm,
+		CatNetworkFetch:     RuleConfirm,
+		CatNetworkSearch:    RuleAllow,
 		CatProductionChange: RuleConfirm,
 	}
-	if len(defaults) != len(want) {
-		t.Fatalf("DefaultRules has %d entries, want %d", len(defaults), len(want))
+	// Compare the sets rather than the counts. A bare count says a number
+	// changed; naming the category says which one and in which direction.
+	for cat := range defaults {
+		if _, ok := want[cat]; !ok {
+			t.Errorf("DefaultRules has %q with no expectation here; add one", cat)
+		}
+	}
+	for cat := range want {
+		if _, ok := defaults[cat]; !ok {
+			t.Errorf("DefaultRules is missing %q", cat)
+		}
 	}
 	for cat, rule := range want {
 		if defaults[cat] != rule {

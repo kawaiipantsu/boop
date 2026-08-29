@@ -56,6 +56,15 @@ export class Store {
 
   private readonly listeners = new Set<Listener>();
   private synthetic = 0;
+  /**
+   * Bumped by every local change to the approval queue.
+   *
+   * GET /api/approval is a slow, racy view of a queue the socket updates
+   * instantly. Capturing the epoch before the request and checking it after
+   * is what stops a stale response from resurrecting an answered approval or
+   * erasing one that arrived while it was in flight.
+   */
+  private epoch = 0;
 
   get(): Readonly<AppState> {
     return this.state;
@@ -107,8 +116,14 @@ export class Store {
     this.patch({ lastError: message });
   }
 
+  /** Token to pass back to setApprovals so a stale response is discarded. */
+  approvalsEpoch(): number {
+    return this.epoch;
+  }
+
   clearApproval(id: string): void {
     if (!this.state.approvals.some((a) => a.id === id)) return;
+    this.epoch += 1;
     this.patch({ approvals: this.state.approvals.filter((a) => a.id !== id) });
   }
 
@@ -128,6 +143,7 @@ export class Store {
     const print = approvalFingerprint(approval);
     const twinIndex = existing.findIndex((a) => approvalFingerprint(a) === print);
     if (twinIndex === -1) {
+      this.epoch += 1;
       this.patch({ approvals: [...existing, approval] });
       return;
     }
@@ -135,6 +151,7 @@ export class Store {
     if (twin.synthetic && !approval.synthetic) {
       const approvals = [...existing];
       approvals[twinIndex] = approval;
+      this.epoch += 1;
       this.patch({ approvals });
     }
     // Otherwise the one we already have is at least as good; keep it.
@@ -147,6 +164,7 @@ export class Store {
     if (hello.mode) status.mode = hello.mode;
     // The server's pending queue replaces ours wholesale: after a reconnect,
     // anything we still hold that the server does not is already answered.
+    this.epoch += 1;
     this.patch({ status, approvals: hello.pendingApprovals });
   }
 
@@ -157,8 +175,15 @@ export class Store {
     else this.clearApproval(ev.approval.id);
   }
 
-  /** Replaces the queue from GET /api/approval after a resync. */
-  setApprovals(approvals: Approval[]): void {
+  /**
+   * Replaces the queue from GET /api/approval.
+   *
+   * `epoch` is the value approvalsEpoch() returned before the request; the
+   * response is discarded if the socket has changed the queue since.
+   */
+  setApprovals(approvals: Approval[], epoch?: number): void {
+    if (epoch !== undefined && epoch !== this.epoch) return;
+    this.epoch += 1;
     this.patch({ approvals });
   }
 

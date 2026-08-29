@@ -2,7 +2,9 @@ package ollama
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 
@@ -423,5 +425,74 @@ func TestStoreTagsReplacesDeletedModels(t *testing.T) {
 	}
 	if _, ok := c.lookupTag("keep:1"); !ok {
 		t.Fatal("keep:1 should still be cached")
+	}
+}
+
+// Ollama's /api/tags omits "vision" for models that /api/show reports it for.
+// Verified against Ollama 0.31.2: gemma3:12b lists ["completion"] in /api/tags
+// and ["completion","vision"] in /api/show. Trusting the non-empty tags list
+// told the user a vision model could not see, so /api/show now settles it.
+func TestCapabilitiesPrefersShowOverIncompleteTags(t *testing.T) {
+	var showCalls int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"models":[{"name":"gemma3:12b","model":"gemma3:12b",
+				"details":{"family":"gemma3","parameter_size":"12.2B"},
+				"capabilities":["completion"]}]}`)
+		case "/api/show":
+			showCalls++
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"capabilities":["completion","vision"],
+				"details":{"family":"gemma3"},
+				"model_info":{"gemma3.context_length":131072}}`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, srv.Client())
+	caps, err := c.Capabilities(context.Background(), "gemma3:12b")
+	if err != nil {
+		t.Fatalf("Capabilities() = %v", err)
+	}
+	if !caps.Has(provider.CapabilityVision) {
+		t.Errorf("caps = %v, want vision — /api/tags under-reports it", caps.Strings())
+	}
+
+	// The answer is cached, so a second call costs no extra request.
+	if _, err := c.Capabilities(context.Background(), "gemma3:12b"); err != nil {
+		t.Fatalf("second Capabilities() = %v", err)
+	}
+	if showCalls != 1 {
+		t.Errorf("/api/show called %d times, want 1 (the answer should be cached)", showCalls)
+	}
+}
+
+// When /api/show is unavailable the listing is still better than a guess.
+func TestCapabilitiesFallsBackToTagsWhenShowFails(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/tags":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"models":[{"name":"llama3.1:8b","model":"llama3.1:8b",
+				"details":{"family":"llama"},"capabilities":["completion","tools"]}]}`)
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer srv.Close()
+
+	caps, err := New(srv.URL, srv.Client()).Capabilities(context.Background(), "llama3.1:8b")
+	if err != nil {
+		t.Fatalf("Capabilities() = %v", err)
+	}
+	if !caps.Has(provider.CapabilityTools) {
+		t.Errorf("caps = %v, want tools from the listing", caps.Strings())
+	}
+	if caps.Has(provider.CapabilityVision) {
+		t.Errorf("caps = %v, want no vision invented", caps.Strings())
 	}
 }

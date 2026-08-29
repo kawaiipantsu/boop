@@ -294,12 +294,30 @@ func (c *Client) Capabilities(ctx context.Context, model string) (provider.Capab
 			"Capabilities called with an empty model id")
 	}
 
+	// A previously settled /api/show answer wins outright.
+	if caps, ok := c.lookupShown(model); ok {
+		return caps, nil
+	}
+
+	// /api/show is authoritative. /api/tags is cheaper but incomplete: it
+	// omits "vision" for multimodal models, so trusting a non-empty tags
+	// list would tell the user a vision model cannot see (§8).
+	shown, showErr := c.Show(ctx, model)
+	if showErr == nil && len(shown.Capabilities) > 0 {
+		c.rememberShown(model, shown.Capabilities)
+		return shown.Capabilities, nil
+	}
+	if showErr != nil && ctx.Err() != nil {
+		return nil, showErr
+	}
+
+	// /api/show did not answer. Fall back to the listing, refreshing it once
+	// in case the model was pulled since the last fetch.
 	if t, ok := c.lookupTag(model); ok {
 		if caps := mapCapabilities(t.Capabilities); len(caps) > 0 {
 			return caps, nil
 		}
 	}
-
 	if _, err := c.fetchTags(ctx); err != nil {
 		if ctx.Err() != nil {
 			return nil, err
@@ -310,15 +328,25 @@ func (c *Client) Capabilities(ctx context.Context, model string) (provider.Capab
 		}
 	}
 
-	shown, showErr := c.Show(ctx, model)
-	switch {
-	case showErr == nil && len(shown.Capabilities) > 0:
-		return shown.Capabilities, nil
-	case showErr != nil && ctx.Err() != nil:
-		return nil, showErr
-	}
-
 	return c.Client.Capabilities(ctx, model)
+}
+
+// lookupShown returns a cached /api/show capability answer.
+func (c *Client) lookupShown(model string) (provider.Capabilities, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	caps, ok := c.shown[model]
+	return caps, ok
+}
+
+// rememberShown caches an /api/show capability answer.
+func (c *Client) rememberShown(model string, caps provider.Capabilities) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.shown == nil {
+		c.shown = make(map[string]provider.Capabilities)
+	}
+	c.shown[model] = caps
 }
 
 // Show describes a single model using POST /api/show.

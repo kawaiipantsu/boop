@@ -133,7 +133,7 @@ func TestGreetAnnouncesTheRiskySettings(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			application, approver := newTestApp(t, tc.mutate)
 			m := newModel(context.Background(), application, approver, "s", "", "", nil)
-			m.greet(application, false)
+			m.greet(application, false, false)
 			if got := renderText(m.transcript, 100); !strings.Contains(got, tc.want) {
 				t.Fatalf("greeting is missing %q:\n%s", tc.want, got)
 			}
@@ -149,7 +149,7 @@ func TestGreetReplaysAResumedTranscript(t *testing.T) {
 		{Role: provider.RoleAssistant, Content: "an earlier answer"},
 	}
 	m := newModel(context.Background(), application, approver, "s", "", "", history)
-	m.greet(application, true)
+	m.greet(application, true, false)
 
 	got := renderText(m.transcript, 100)
 	for _, want := range []string{"resumed session", "an earlier question", "an earlier answer"} {
@@ -282,7 +282,7 @@ func TestWaitForTurnsGivesUpAfterTheGrace(t *testing.T) {
 func TestProgramLoopRunsAndQuits(t *testing.T) {
 	application, approver := newTestApp(t, nil)
 	m := newModel(context.Background(), application, approver, "s", "", "", nil)
-	m.greet(application, false)
+	m.greet(application, false, false)
 
 	input, _ := io.Pipe()
 	var output bytes.Buffer

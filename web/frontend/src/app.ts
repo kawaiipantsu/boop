@@ -174,8 +174,9 @@ export function mount(root: HTMLElement): () => void {
     }
   }
   async function refreshApprovals(): Promise<void> {
+    const epoch = store.approvalsEpoch();
     try {
-      store.setApprovals(await api.approvals());
+      store.setApprovals(await api.approvals(), epoch);
     } catch {
       /* the hello frame is the primary source; this is only a backstop */
     }

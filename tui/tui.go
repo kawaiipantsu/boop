@@ -106,7 +106,7 @@ func Run(ctx context.Context, opts Options) error {
 	}
 
 	model := newModel(ctx, application, approver, sess.ID, sess.Title, opts.InitialPrompt, history)
-	model.greet(application, resumed)
+	model.greet(application, resumed, opts.Verbose)
 
 	program := tea.NewProgram(model,
 		tea.WithContext(ctx),
@@ -206,7 +206,7 @@ func buildSystemPrompt(application *app.App) string {
 
 // greet writes the opening lines of the transcript: what Boop is pointed at,
 // and anything that went wrong during startup but did not stop it.
-func (m *Model) greet(application *app.App, resumed bool) {
+func (m *Model) greet(application *app.App, resumed, verbose bool) {
 	m.transcript.Append(Entry{Kind: EntrySystem, Text: fmt.Sprintf(
 		"boop — %s in %s\ntype /help for commands, Ctrl+C to interrupt",
 		m.providerModel(), application.Workspace.Root())})
@@ -218,8 +218,18 @@ func (m *Model) greet(application *app.App, resumed bool) {
 			m.transcript.Append(e)
 		}
 	}
-	for _, w := range application.Warnings {
-		m.transcript.Append(Entry{Kind: EntrySystem, Text: "startup: " + w})
+	// Startup warnings are usually just "you have no OPENAI_API_KEY", which a
+	// local-only user does not need three paragraphs about every launch. Show
+	// a single line and keep the detail behind /status or --verbose.
+	if n := len(application.Warnings); n > 0 {
+		if verbose {
+			for _, w := range application.Warnings {
+				m.transcript.Append(Entry{Kind: EntrySystem, Text: "startup: " + w})
+			}
+		} else {
+			m.transcript.Append(Entry{Kind: EntrySystem, Text: fmt.Sprintf(
+				"%d provider(s) unavailable — /status for details", n)})
+		}
 	}
 	if application.Config.Network.Enabled {
 		m.transcript.Append(Entry{Kind: EntrySystem,

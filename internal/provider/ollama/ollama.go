@@ -131,10 +131,17 @@ type Client struct {
 	root      string
 	keepAlive time.Duration
 
-	// mu guards the /api/tags cache, which is the authoritative capability
-	// source and is consulted from RefineCapabilities on the shared path.
-	mu   sync.RWMutex
-	tags map[string]tagModel
+	// mu guards the caches below.
+	//
+	// The /api/tags listing is the cheap source, but it is not complete:
+	// Ollama omits "vision" there for multimodal models that /api/show does
+	// report it for. Verified against Ollama 0.31.2, where gemma3:12b lists
+	// ["completion"] in /api/tags and ["completion","vision"] in /api/show.
+	// So tags seeds the fast path and /api/show settles the answer, cached
+	// per model because it costs a request each time.
+	mu    sync.RWMutex
+	tags  map[string]tagModel
+	shown map[string]provider.Capabilities
 }
 
 // Compile-time proof of the contracts this adapter fulfils.

@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { Store, emptyStatus } from './store.js';
-import type { BoopEvent } from './protocol.js';
+import { parseApproval } from './protocol.js';
+import type { Approval, BoopEvent } from './protocol.js';
+
+function approval(over: Record<string, unknown>): Approval {
+  const parsed = parseApproval(over, () => 'synthetic');
+  if (!parsed) throw new Error('fixture did not parse');
+  return parsed;
+}
 
 function feed(store: Store, events: BoopEvent[]): void {
   for (const ev of events) store.apply(ev);
@@ -115,5 +122,77 @@ describe('Store', () => {
     const before = store.get();
     store.apply({ type: 'something.new', payload: { a: 1 } });
     assert.equal(store.get(), before);
+  });
+});
+
+describe('Store approval queue', () => {
+  const ACTION = { category: 'shell.execute', risk: 'high', tool: 'run', summary: 'push', detail: 'git push origin main' };
+
+  it('pairs the bare bus Action with the id-carrying approval frame', () => {
+    const store = new Store();
+    // The bus event has no id, so the UI could not answer it on its own.
+    store.apply({ type: 'approval.requested', payload: ACTION });
+    assert.equal(store.get().approvals.length, 1);
+    assert.equal(store.get().approvals[0]?.synthetic, true);
+
+    store.applyApprovalEvent({ kind: 'added', approval: approval({ id: 'ap-1', action: ACTION }), approved: false, scope: '' });
+    const queue = store.get().approvals;
+    assert.equal(queue.length, 1, 'one decision must not become two dialogs');
+    assert.equal(queue[0]?.id, 'ap-1');
+    assert.equal(queue[0]?.synthetic, false);
+  });
+
+  it('does not downgrade a real approval back to a synthetic one', () => {
+    const store = new Store();
+    store.applyApprovalEvent({ kind: 'added', approval: approval({ id: 'ap-1', action: ACTION }), approved: false, scope: '' });
+    store.apply({ type: 'approval.requested', payload: ACTION });
+    assert.equal(store.get().approvals.length, 1);
+    assert.equal(store.get().approvals[0]?.id, 'ap-1');
+  });
+
+  it('keeps distinct actions apart', () => {
+    const store = new Store();
+    store.applyApprovalEvent({ kind: 'added', approval: approval({ id: 'a', action: ACTION }), approved: false, scope: '' });
+    store.applyApprovalEvent({
+      kind: 'added',
+      approval: approval({ id: 'b', action: { ...ACTION, detail: 'git push --force' } }),
+      approved: false,
+      scope: '',
+    });
+    assert.equal(store.get().approvals.length, 2);
+  });
+
+  it('clears on a resolved or cancelled frame', () => {
+    const store = new Store();
+    const a = approval({ id: 'ap-1', action: ACTION });
+    store.applyApprovalEvent({ kind: 'added', approval: a, approved: false, scope: '' });
+    store.applyApprovalEvent({ kind: 'resolved', approval: a, approved: true, scope: 'once' });
+    assert.equal(store.get().approvals.length, 0);
+  });
+
+  it('takes session, mode and the pending queue from hello', () => {
+    const store = new Store();
+    store.applyHello({
+      protocol: 1,
+      sessionId: 's-9',
+      mode: 'auto',
+      pendingApprovals: [approval({ id: 'ap-1', action: ACTION })],
+    });
+    assert.equal(store.get().status.sessionId, 's-9');
+    assert.equal(store.get().status.mode, 'auto');
+    assert.equal(store.get().approvals.length, 1);
+  });
+
+  it('discards a stale GET /api/approval response', () => {
+    const store = new Store();
+    const epoch = store.approvalsEpoch();
+    // The socket delivers an approval while the poll is in flight.
+    store.applyApprovalEvent({ kind: 'added', approval: approval({ id: 'ap-1', action: ACTION }), approved: false, scope: '' });
+    store.setApprovals([], epoch);
+    assert.equal(store.get().approvals.length, 1, 'the stale empty response must not erase it');
+
+    // A response captured after that change still applies.
+    store.setApprovals([], store.approvalsEpoch());
+    assert.equal(store.get().approvals.length, 0);
   });
 });
