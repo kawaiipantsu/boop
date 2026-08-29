@@ -134,9 +134,14 @@ func (l *Loop) collect(ctx context.Context, events <-chan provider.ChatEvent) (p
 	var text strings.Builder
 	var calls []tools.Call
 	var usage provider.Usage
+	var received, terminated bool
 	msg := provider.Message{Role: provider.RoleAssistant}
 
 	for ev := range events {
+		received = true
+		if ev.Type == provider.EventDone {
+			terminated = true
+		}
 		switch ev.Type {
 		case provider.EventDelta:
 			text.WriteString(ev.Text)
@@ -167,6 +172,22 @@ func (l *Loop) collect(ctx context.Context, events <-chan provider.ChatEvent) (p
 			return msg, nil, usage, ctx.Err()
 		}
 	}
+
+	// Check cancellation after the loop as well as inside it. A stream that
+	// yields nothing never enters the body, and returning an empty answer as
+	// success would silently swallow a cancelled request.
+	if err := ctx.Err(); err != nil {
+		return msg, nil, usage, err
+	}
+	if !received {
+		return msg, nil, usage, provider.NewError(provider.ErrMalformedResponse,
+			"", "the provider produced no events", nil)
+	}
+	if !terminated && len(calls) == 0 && text.Len() == 0 {
+		return msg, nil, usage, provider.NewError(provider.ErrMalformedResponse,
+			"", "the stream ended without a completion", nil)
+	}
+
 	msg.Content = text.String()
 	return msg, calls, usage, nil
 }

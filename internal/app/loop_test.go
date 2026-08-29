@@ -6,7 +6,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/kawaiipantsu/boop/internal/permissions"
 	"github.com/kawaiipantsu/boop/internal/provider"
@@ -363,11 +362,45 @@ func TestLoopHonoursContextCancellation(t *testing.T) {
 	p := &scriptedProvider{turns: [][]provider.ChatEvent{textTurn("hi")}}
 	loop := newLoop(t, p, tools.NewRegistry(), allowAll(), nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
-	defer cancel()
+	// Cancel up front rather than racing a short timeout against execution:
+	// a deadline that may or may not have elapsed makes the test flaky, which
+	// is worse than not having it.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
 	if _, err := loop.Run(ctx, []provider.Message{{Role: provider.RoleUser, Content: "q"}}); err == nil {
 		t.Error("Run() = nil, want a cancellation error")
 	}
+}
+
+// A cancellation part-way through a stream must stop the turn rather than
+// finishing it, so an interrupted user does not pay for a full answer (§51).
+func TestLoopStopsWhenCancelledMidStream(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	p := &cancellingProvider{cancel: cancel}
+	loop := newLoop(t, p, tools.NewRegistry(), allowAll(), nil)
+
+	_, err := loop.Run(ctx, []provider.Message{{Role: provider.RoleUser, Content: "q"}})
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("Run() = %v, want context.Canceled", err)
+	}
+}
+
+// cancellingProvider cancels the context after emitting its first delta, so
+// the loop is interrupted deterministically part-way through a stream.
+type cancellingProvider struct {
+	scriptedProvider
+	cancel context.CancelFunc
+}
+
+func (c *cancellingProvider) Chat(ctx context.Context, _ provider.ChatRequest) (<-chan provider.ChatEvent, error) {
+	ch := make(chan provider.ChatEvent, 3)
+	ch <- provider.ChatEvent{Type: provider.EventDelta, Text: "partial"}
+	c.cancel()
+	ch <- provider.ChatEvent{Type: provider.EventDelta, Text: " more"}
+	ch <- provider.ChatEvent{Type: provider.EventDone, Finish: provider.FinishStop}
+	close(ch)
+	return ch, nil
 }
 
 func TestLoopRequiresItsCollaborators(t *testing.T) {
@@ -380,3 +413,30 @@ func TestLoopRequiresItsCollaborators(t *testing.T) {
 }
 
 var _ = json.Marshal
+
+// emptyStreamProvider closes its channel without emitting anything, which is
+// what a cancelled or broken stream can look like from the loop's side.
+type emptyStreamProvider struct{ scriptedProvider }
+
+func (*emptyStreamProvider) Chat(context.Context, provider.ChatRequest) (<-chan provider.ChatEvent, error) {
+	ch := make(chan provider.ChatEvent)
+	close(ch)
+	return ch, nil
+}
+
+// A stream that yields no events must be an error, not an empty answer.
+//
+// The check for cancellation used to live only inside the event loop, so a
+// stream with nothing in it never reached it and the turn returned success
+// with empty text — the model appearing to answer with silence.
+func TestLoopRejectsAnEmptyStream(t *testing.T) {
+	loop := newLoop(t, &emptyStreamProvider{}, tools.NewRegistry(), allowAll(), nil)
+
+	turn, err := loop.Run(context.Background(), []provider.Message{{Role: provider.RoleUser, Content: "q"}})
+	if err == nil {
+		t.Fatalf("Run() = nil with text %q, want an error", turn.Text)
+	}
+	if category, ok := provider.CategoryOf(err); !ok || category != provider.ErrMalformedResponse {
+		t.Errorf("category = %v, want %v", category, provider.ErrMalformedResponse)
+	}
+}
