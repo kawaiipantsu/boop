@@ -27,6 +27,9 @@ type options struct {
 	dangerouslyUnrestricted bool
 	showVersion             bool
 	verbose                 bool
+	// allowInsecureBind permits binding beyond loopback with auth disabled.
+	// It is deliberately explicit: §23 says never assume a LAN is trusted.
+	allowInsecureBind bool
 }
 
 // run parses arguments and dispatches to a startup mode.
@@ -67,6 +70,8 @@ func parse(args []string, stderr io.Writer) (options, error) {
 	fs.BoolVar(&opts.showVersion, "version", false, "print version and exit")
 	fs.BoolVar(&opts.verbose, "verbose", false, "report tool activity and timings on stderr")
 	fs.BoolVar(&opts.verbose, "v", false, "shorthand for --verbose")
+	fs.BoolVar(&opts.allowInsecureBind, "allow-insecure-bind", false,
+		"permit binding the WebUI beyond loopback with authentication disabled")
 
 	fs.Usage = func() {
 		fmt.Fprint(stderr, usageText)
@@ -97,7 +102,7 @@ func dispatch(opts options, stdout, stderr io.Writer) error {
 	case opts.gui:
 		return fmt.Errorf("native GUI is not implemented yet (milestone 13)")
 	case opts.web:
-		return fmt.Errorf("WebUI is not implemented yet (milestone 9)")
+		return runWebUI(context.Background(), opts, stdout, stderr)
 	case opts.noTUI:
 		return runPlainCLI(context.Background(), opts, stdout, stderr)
 	default:
