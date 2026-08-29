@@ -9,6 +9,7 @@ import (
 
 	"github.com/kawaiipantsu/boop/internal/permissions"
 	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/session"
 	"github.com/kawaiipantsu/boop/internal/tools"
 )
 
@@ -33,6 +34,18 @@ type Loop struct {
 	SessionID string
 	// Selection pins the provider, model and required capabilities.
 	Selection provider.Selection
+	// Context bounds what is actually sent. Without one the whole
+	// conversation goes to the model every turn, which §47 forbids: a long
+	// session eventually exceeds the window and fails on a request that
+	// could have succeeded.
+	Context *session.ContextManager
+	// MaxRetriesPerCommand bounds how many times the model may repeat an
+	// identical failing tool call within one turn. Retrying the same broken
+	// command is the most common way a repair loop wastes its budget.
+	MaxRetriesPerCommand int
+
+	// failures counts identical failing calls within the current turn.
+	failures map[string]int
 }
 
 // Turn is the outcome of running one user turn.
@@ -77,12 +90,13 @@ func (l *Loop) Run(ctx context.Context, history []provider.Message) (*Turn, erro
 
 	turn := &Turn{}
 	conversation := append([]provider.Message(nil), history...)
+	l.failures = make(map[string]int)
 
 	for turn.Iterations = 1; turn.Iterations <= maxIter; turn.Iterations++ {
 		l.emit(EventModelRequestStarted, map[string]any{"iteration": turn.Iterations})
 
 		req := provider.ChatRequest{
-			Messages: conversation,
+			Messages: l.prompt(ctx, conversation),
 			Tools:    l.Tools.Definitions(nil),
 			Stream:   true,
 		}
@@ -111,7 +125,17 @@ func (l *Loop) Run(ctx context.Context, history []provider.Message) (*Turn, erro
 		}
 
 		for _, call := range calls {
+			if over, msg := l.retryExhausted(call); over {
+				conversation = append(conversation, provider.Message{
+					Role: provider.RoleTool, ToolCallID: call.ID, Name: call.Name, Content: msg,
+				})
+				turn.Messages = append(turn.Messages, conversation[len(conversation)-1])
+				continue
+			}
 			result := l.invoke(ctx, call)
+			if result.IsError {
+				l.failures[retryKey(call)]++
+			}
 			turn.ToolCalls++
 			msg := provider.Message{
 				Role:       provider.RoleTool,
@@ -128,6 +152,33 @@ func (l *Loop) Run(ctx context.Context, history []provider.Message) (*Turn, erro
 	turn.StoppedAtLimit = true
 	return turn, nil
 }
+
+// prompt bounds the conversation to what should actually be sent.
+//
+// Without a context manager the full history goes out unchanged, which is
+// correct for a short session and fatal for a long one.
+func (l *Loop) prompt(ctx context.Context, conversation []provider.Message) []provider.Message {
+	if l.Context == nil {
+		return conversation
+	}
+	var system string
+	rest := conversation
+	if len(rest) > 0 && rest[0].Role == provider.RoleSystem {
+		system, rest = rest[0].Content, rest[1:]
+	}
+	assembly, err := l.Context.Build(ctx, session.Input{SystemPrompt: system, History: rest})
+	if err != nil {
+		// A budget too small to hold the newest turn is a real problem, but
+		// failing the request outright is worse than sending it unbounded and
+		// letting the provider report the truth.
+		l.emit(EventError, fmt.Sprintf("context assembly failed, sending unbounded: %v", err))
+		return conversation
+	}
+	return assembly.Messages
+}
+
+// retryKey identifies a tool call for repeat detection.
+func retryKey(call tools.Call) string { return call.Name + "\x00" + string(call.Arguments) }
 
 // collect drains a provider stream into an assistant message and its tool calls.
 func (l *Loop) collect(ctx context.Context, events <-chan provider.ChatEvent) (provider.Message, []tools.Call, provider.Usage, error) {
@@ -246,6 +297,26 @@ func (l *Loop) invoke(ctx context.Context, call tools.Call) tools.Result {
 		"duration": result.Duration.String(), "display": result.Display,
 	})
 	return result
+}
+
+// retryExhausted reports whether an identical call has already failed too
+// often in this turn, and the message to hand back instead of running it.
+//
+// A model that keeps re-issuing the same broken command burns its whole
+// iteration budget on it; telling it plainly that repeating will not help is
+// more useful than letting it fail again.
+func (l *Loop) retryExhausted(call tools.Call) (bool, string) {
+	limit := l.MaxRetriesPerCommand
+	if limit <= 0 {
+		return false, ""
+	}
+	if l.failures[retryKey(call)] < limit {
+		return false, ""
+	}
+	return true, fmt.Sprintf(
+		"This exact %s call has already failed %d times in this turn and was not run again. "+
+			"Repeating it will not help — change the arguments, try a different approach, or "+
+			"explain what is blocking you.", call.Name, limit)
 }
 
 // emit publishes to the bus when one is attached.

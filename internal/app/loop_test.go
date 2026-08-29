@@ -440,3 +440,76 @@ func TestLoopRejectsAnEmptyStream(t *testing.T) {
 		t.Errorf("category = %v, want %v", category, provider.ErrMalformedResponse)
 	}
 }
+
+// A model that re-issues the same failing call burns its whole iteration
+// budget on it. max_retries_per_command exists to stop that, and was
+// previously read by nothing.
+func TestLoopStopsRepeatingAFailingCall(t *testing.T) {
+	tool := &recordingTool{
+		name:   "broken",
+		action: permissions.Action{Category: permissions.CatShellExecute, Risk: permissions.RiskLow},
+		result: tools.Result{Content: "exit 1: no such file", IsError: true},
+	}
+	reg := tools.NewRegistry()
+	reg.Register(tool)
+
+	turns := make([][]provider.ChatEvent, 10)
+	for i := range turns {
+		turns[i] = toolTurn("c", "broken", `{"command":"cat missing"}`)
+	}
+	p := &scriptedProvider{turns: turns}
+	loop := newLoop(t, p, reg, allowAll(), nil)
+	loop.MaxIterations = 8
+	loop.MaxRetriesPerCommand = 2
+
+	turn, err := loop.Run(context.Background(), []provider.Message{{Role: provider.RoleUser, Content: "q"}})
+	if err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+	if tool.invoked != 2 {
+		t.Errorf("tool ran %d times, want 2 (the retry bound)", tool.invoked)
+	}
+
+	var refusal string
+	for _, m := range turn.Messages {
+		if m.Role == provider.RoleTool && strings.Contains(m.Content, "already failed") {
+			refusal = m.Content
+		}
+	}
+	if refusal == "" {
+		t.Fatal("the model was never told it had exhausted its retries")
+	}
+	// Telling it to stop is only useful if it also says what to do instead.
+	for _, want := range []string{"Repeating it will not help", "different approach"} {
+		if !strings.Contains(refusal, want) {
+			t.Errorf("refusal = %q, want it to mention %q", refusal, want)
+		}
+	}
+}
+
+// A differing call is not a retry, even from the same tool.
+func TestLoopRetryBoundIsPerExactCall(t *testing.T) {
+	tool := &recordingTool{
+		name:   "broken",
+		action: permissions.Action{Category: permissions.CatShellExecute, Risk: permissions.RiskLow},
+		result: tools.Result{Content: "nope", IsError: true},
+	}
+	reg := tools.NewRegistry()
+	reg.Register(tool)
+
+	p := &scriptedProvider{turns: [][]provider.ChatEvent{
+		toolTurn("c1", "broken", `{"command":"one"}`),
+		toolTurn("c2", "broken", `{"command":"two"}`),
+		toolTurn("c3", "broken", `{"command":"three"}`),
+		textTurn("giving up"),
+	}}
+	loop := newLoop(t, p, reg, allowAll(), nil)
+	loop.MaxRetriesPerCommand = 2
+
+	if _, err := loop.Run(context.Background(), []provider.Message{{Role: provider.RoleUser, Content: "q"}}); err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+	if tool.invoked != 3 {
+		t.Errorf("tool ran %d times, want 3 — three different commands are not retries", tool.invoked)
+	}
+}

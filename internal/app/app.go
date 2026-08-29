@@ -13,13 +13,16 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kawaiipantsu/boop/internal/config"
 	"github.com/kawaiipantsu/boop/internal/execution"
+	"github.com/kawaiipantsu/boop/internal/logging"
 	"github.com/kawaiipantsu/boop/internal/permissions"
 	"github.com/kawaiipantsu/boop/internal/project"
 	"github.com/kawaiipantsu/boop/internal/provider"
 	"github.com/kawaiipantsu/boop/internal/session"
+	"github.com/kawaiipantsu/boop/internal/stats"
 	"github.com/kawaiipantsu/boop/internal/store"
 	"github.com/kawaiipantsu/boop/internal/tools"
 	"github.com/kawaiipantsu/boop/internal/webclient"
@@ -39,6 +42,9 @@ type Options struct {
 	DatabasePath string
 	// SystemPrompt overrides the built-in prompt.
 	SystemPrompt string
+	// LogPath overrides the platform log file. ":discard" disables logging,
+	// which keeps tests from writing to the user's real log directory.
+	LogPath string
 	// Stderr receives startup warnings. Nil discards them.
 	Stderr io.Writer
 	// Verbose prints startup warnings that are otherwise only recorded.
@@ -57,6 +63,15 @@ type App struct {
 	Workspace *tools.Workspace
 	Web       *webclient.Client
 	Memory    *project.Memory
+	// Stats aggregates token, cost and tool usage for /stats and the WebUI.
+	//
+	// The agent coordinator is deliberately not held here: internal/agent
+	// builds on app.Loop, so the dependency runs upward and the fleet is
+	// constructed by the frontends via agent.NewFromApp.
+	Stats *stats.Tracker
+	// Logger is the structured logger; its output goes to a file rather than
+	// the terminal so a full-screen UI is never polluted (§44).
+	Logger *logging.Logger
 	// Warnings records providers that could not be built, so a frontend can
 	// explain why a provider is missing without failing startup over it.
 	Warnings []string
@@ -140,6 +155,11 @@ func New(ctx context.Context, opts Options) (*App, error) {
 		prompt = DefaultSystemPrompt()
 	}
 
+	logger, err := buildLogger(cfg, opts.LogPath)
+	if err != nil {
+		return nil, fmt.Errorf("app: %w", err)
+	}
+
 	app := &App{
 		Config:       cfg,
 		Warnings:     warnings,
@@ -151,6 +171,8 @@ func New(ctx context.Context, opts Options) (*App, error) {
 		Sessions:     session.NewManager(st),
 		Workspace:    ws,
 		Web:          web,
+		Stats:        stats.New(),
+		Logger:       logger,
 		store:        st,
 		systemPrompt: prompt,
 	}
@@ -173,13 +195,15 @@ func newExecutor(cfg *config.Config) execution.Executor {
 // NewLoop returns a loop bound to this runtime for the given session.
 func (a *App) NewLoop(sessionID string) *Loop {
 	return &Loop{
-		Router:        a.Router,
-		Tools:         a.Tools,
-		Evaluator:     a.Evaluator,
-		Approver:      a.Approver,
-		Bus:           a.Bus,
-		MaxIterations: a.Config.Execution.MaxToolIterations,
-		SessionID:     sessionID,
+		Router:               a.Router,
+		Tools:                a.Tools,
+		Evaluator:            a.Evaluator,
+		Approver:             a.Approver,
+		Bus:                  a.Bus,
+		MaxIterations:        a.Config.Execution.MaxToolIterations,
+		MaxRetriesPerCommand: a.Config.Execution.MaxRetriesPerCommand,
+		Context:              a.newContextManager(),
+		SessionID:            sessionID,
 		Selection: provider.Selection{
 			Provider: a.Config.Provider,
 			Model:    a.Config.Model,
@@ -187,16 +211,84 @@ func (a *App) NewLoop(sessionID string) *Loop {
 	}
 }
 
+// newContextManager bounds each request to the active model's window.
+//
+// The budget comes from the model's declared context window where the router
+// knows it, falling back to a conservative default: overestimating the window
+// produces a request the provider rejects, which is worse than sending less.
+func (a *App) newContextManager() *session.ContextManager {
+	return session.NewContextManager(session.Options{
+		Budget:  defaultContextBudget,
+		Reserve: defaultAnswerReserve,
+	})
+}
+
 // SystemPrompt returns the prompt prefixed to every conversation.
 func (a *App) SystemPrompt() string { return a.systemPrompt }
+
+// Context budget defaults, used when the model's real window is unknown.
+const (
+	// defaultContextBudget is deliberately modest: many local servers serve a
+	// far smaller window than the model advertises, and an over-long request
+	// fails outright rather than degrading.
+	defaultContextBudget = 24000
+	// defaultAnswerReserve is held back from the budget for the reply.
+	defaultAnswerReserve = 4000
+)
+
+// buildLogger opens the structured logger for this run.
+//
+// It writes to a file rather than the terminal because a full-screen UI owns
+// the terminal and §44 forbids debug noise in the transcript. A logging
+// failure is not fatal: losing logs is worse than not starting, but only
+// slightly, so the caller gets a working discard logger instead.
+func buildLogger(cfg *config.Config, override string) (*logging.Logger, error) {
+	if override == ":discard" {
+		return logging.NewNop(), nil
+	}
+	level, err := logging.ParseLevel(cfg.Logging.Level)
+	if err != nil {
+		return nil, err
+	}
+	path := override
+	if path == "" {
+		path = cfg.Logging.File
+	}
+	if path == "" {
+		if path, err = config.LogFile(); err != nil {
+			return logging.NewNop(), nil
+		}
+	}
+	format := logging.FormatText
+	if strings.EqualFold(cfg.Logging.Format, "json") {
+		format = logging.FormatJSON
+	}
+	lg, err := logging.New(logging.Options{
+		Level: level, Format: format, File: path,
+		MaxSizeBytes: int64(cfg.Logging.MaxSizeMB) << 20,
+		MaxBackups:   cfg.Logging.MaxBackups,
+		AddSource:    level <= logging.LevelDebug,
+	})
+	if err != nil {
+		return logging.NewNop(), nil
+	}
+	return lg, nil
+}
 
 // Close releases the runtime's resources.
 //
 // Shutdown flushes and closes the database last, so anything written during
 // teardown is still persisted (§58).
 func (a *App) Close() error {
+	var firstErr error
 	if a.store != nil {
-		return a.store.Close()
+		firstErr = a.store.Close()
 	}
-	return nil
+	// The logger closes last so anything written during teardown still lands.
+	if a.Logger != nil {
+		if err := a.Logger.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
