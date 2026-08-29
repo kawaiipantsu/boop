@@ -384,6 +384,8 @@ func attachOutcome(d AttachData) string {
 		fields = append(fields, plural(d.Slides, "slide"), attachTextSize(d))
 	case d.Sheets > 0:
 		fields = append(fields, plural(d.Sheets, "sheet"), attachTextSize(d))
+	case d.Paragraphs > 0:
+		fields = append(fields, plural(d.Paragraphs, "paragraph"), attachTextSize(d))
 	default:
 		fields = append(fields, plural(d.Lines, "line"), attachTextSize(d))
 	}
@@ -417,6 +419,12 @@ func attachKind(t documents.TypeInfo) string {
 	case documents.HandlerText:
 		return "text"
 	default:
+		// An unsupported file still has to be named in an approval prompt.
+		// "DOC" is what the user calls it; "application/octet-stream" is what
+		// the sniffer calls everything it does not recognise.
+		if ext != "" {
+			return ext
+		}
 		if t.MIMEType != "" {
 			return t.MIMEType
 		}
@@ -463,42 +471,52 @@ type attachFailure struct {
 	reason string
 	// display is the short outcome shown in the UI.
 	display string
-	// hint is appended only when documents' own message ends without one.
+	// hint is the next step, appended only when documents' own message ends
+	// without one.
 	hint string
+	// hintUnless suppresses hint when the message already contains it. Some
+	// sentinels are raised from more than one place — a damaged PDF may be
+	// reported by the reader, which says how to fix it, or by the extractor,
+	// which does not — and telling the user to re-download the file twice in
+	// one sentence reads like a machine wrote it.
+	hintUnless string
 }
 
 // attachFailures is ordered specific-first; the first matching entry wins.
 var attachFailures = []attachFailure{
-	{documents.ErrPDFEncrypted, "pdf_encrypted", "encrypted PDF", ""},
-	{documents.ErrPDFNoTextLayer, "pdf_no_text_layer", "PDF has no text layer", ""},
-	{documents.ErrPDFUnextractable, "pdf_unextractable", "PDF text not decodable", ""},
+	{documents.ErrPDFEncrypted, "pdf_encrypted", "encrypted PDF", "", ""},
+	{documents.ErrPDFNoTextLayer, "pdf_no_text_layer", "PDF has no text layer", "", ""},
+	{documents.ErrPDFUnextractable, "pdf_unextractable", "PDF text not decodable", "", ""},
 	{documents.ErrPDFDamaged, "pdf_damaged", "damaged PDF",
-		"the file is corrupt rather than merely unusual; re-download or re-export it before trying again"},
+		"the file is corrupt rather than merely unusual; re-download or re-export it before trying again",
+		"Re-download"},
 	{documents.ErrNotPDF, "not_pdf", "not a PDF",
-		"check what the file really is before attaching it again"},
+		"check what the file really is before attaching it again", "Re-save"},
 
-	{documents.ErrOfficeUnsupported, "legacy_office", "legacy office format", ""},
+	{documents.ErrOfficeUnsupported, "legacy_office", "legacy office format", "", ""},
 	{documents.ErrOfficeEmpty, "office_empty", "no text in document",
-		"the container parsed but holds no text; if its content is pictures of text it needs OCR or a vision-capable model"},
-	{documents.ErrNotOffice, "not_office", "not an office document", ""},
+		"if its content is pictures of text it needs OCR or a vision-capable model, not this tool", ""},
+	{documents.ErrNotOffice, "not_office", "not an office document", "", ""},
 	{documents.ErrArchiveTooLarge, "archive_too_large", "archive over limits",
-		"Boop refused to expand it because the declared decompressed size is beyond its bounds"},
+		"Boop refused to expand it because the declared decompressed size is beyond its bounds", ""},
 	{documents.ErrUnsafeArchivePath, "unsafe_archive", "unsafe archive entry",
-		"an entry name pointed outside the archive, so the file was rejected as hostile rather than merely broken"},
+		"an entry name pointed outside the archive, so the file was rejected as hostile rather than merely broken", ""},
 
 	{documents.ErrNotAnImage, "not_an_image", "not a valid image",
-		"the bytes do not decode as the image format the name claims"},
+		"the bytes do not decode as the image format the name claims", ""},
 	{documents.ErrImageTooLarge, "image_too_large", "image too large",
-		"re-encode it smaller before attaching"},
+		"re-encode it smaller before attaching", ""},
 	{documents.ErrImageTooManyPixels, "image_too_many_pixels", "image resolution too high",
-		"resize it before attaching"},
+		"resize it before attaching", ""},
 	{documents.ErrUnsupportedImageFormat, "unsupported_image", "unsupported image format",
-		"convert it to PNG or JPEG"},
+		"convert it to PNG or JPEG", ""},
 
-	{documents.ErrUnsupportedEncoding, "unsupported_encoding", "undecodable text", ""},
+	{documents.ErrUnsupportedEncoding, "unsupported_encoding", "undecodable text",
+		"convert the file to UTF-8 first, or use the read tool if it is not really text",
+		"convert the file"},
 	{documents.ErrFileTooLarge, "file_too_large", "file too large",
-		"attach the part you need, or split the file first"},
-	{documents.ErrUnsupportedType, "unsupported_type", "unsupported file type", ""},
+		"attach the part you need, or split the file first", ""},
+	{documents.ErrUnsupportedType, "unsupported_type", "unsupported file type", "", ""},
 }
 
 // attachFailureResult turns an extraction error into a failed Result.
@@ -532,10 +550,14 @@ func attachExplain(rel, abs string, err error) (reason, display, msg string) {
 	detail := attachCleanError(rel, abs, err)
 	reason, display, hint := "extraction_failed", "attach failed", ""
 	for _, f := range attachFailures {
-		if errors.Is(err, f.sentinel) {
-			reason, display, hint = f.reason, f.display, f.hint
-			break
+		if !errors.Is(err, f.sentinel) {
+			continue
 		}
+		reason, display = f.reason, f.display
+		if f.hintUnless == "" || !strings.Contains(detail, f.hintUnless) {
+			hint = f.hint
+		}
+		break
 	}
 	msg = fmt.Sprintf("cannot attach %s: %s", rel, detail)
 	if hint != "" {

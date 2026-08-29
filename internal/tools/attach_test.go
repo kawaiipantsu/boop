@@ -178,7 +178,7 @@ func TestAttachToolExtractsText(t *testing.T) {
 			file:         "report.docx",
 			body:         attachDOCX(t, "First paragraph", "Second paragraph"),
 			wantInText:   []string{"First paragraph", "Second paragraph"},
-			wantDisplay:  []string{"DOCX"},
+			wantDisplay:  []string{"DOCX", "2 paragraphs"},
 			wantKind:     "DOCX",
 			wantMinParts: 1,
 		},
@@ -309,7 +309,10 @@ func TestAttachToolNamedFailures(t *testing.T) {
 			file:       "broken.pdf",
 			body:       attachCorruptPDF(),
 			wantReason: "pdf_damaged",
-			wantPhrase: []string{"unreadable"},
+			wantPhrase: []string{"unreadable", "truncated or was damaged", "Re-download"},
+			// The reader's own message already says to re-download, so the
+			// category hint must be suppressed rather than repeated.
+			notPhrase: []string{"before trying again"},
 		},
 		{
 			name:       "legacy doc says to save as docx",
@@ -317,6 +320,13 @@ func TestAttachToolNamedFailures(t *testing.T) {
 			body:       attachLegacyDOC(),
 			wantReason: "legacy_office",
 			wantPhrase: []string{"pre-2007", ".docx"},
+		},
+		{
+			name:       "unknown binary lists what is supported",
+			file:       "data.bin",
+			body:       "\x00\x01\x02\x03binary garbage\x00\xff",
+			wantReason: "unsupported_type",
+			wantPhrase: []string{"unsupported file type", "Supported:", "PDF"},
 		},
 	}
 
@@ -467,6 +477,7 @@ func TestAttachToolPermission(t *testing.T) {
 	ws := fsTestWorkspace(t, map[string]string{
 		"report.pdf": attachTextPDF("content"),
 		"logo.png":   attachPNG(t, 8, 8),
+		"old.doc":    attachLegacyDOC(),
 		".env":       "TOKEN=redacted-in-this-fixture",
 	})
 	tool := NewAttachTool(ws)
@@ -483,6 +494,10 @@ func TestAttachToolPermission(t *testing.T) {
 			[]string{"Attach logo.png (", "PNG)"}},
 		{"credential file is raised", ".env", permissions.RiskMedium,
 			[]string{"Attach .env"}},
+		// A format Boop cannot read is still named the way the user names it,
+		// not as "application/octet-stream".
+		{"unsupported format keeps its name", "old.doc", permissions.RiskLow,
+			[]string{"Attach old.doc (", "DOC)"}},
 		{"escaping path is critical", "../../etc/passwd", permissions.RiskCritical,
 			[]string{"Attach "}},
 	}

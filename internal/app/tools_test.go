@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/kawaiipantsu/boop/internal/config"
@@ -153,5 +154,26 @@ func TestBuildToolsRequiresItsDependencies(t *testing.T) {
 	ws, _ := tools.NewWorkspace(t.TempDir())
 	if _, err := BuildTools(config.Default(), ToolDeps{Workspace: ws}); err == nil {
 		t.Error("a missing executor should be rejected")
+	}
+}
+
+// A tool that exists but is never registered is invisible to the model, which
+// is indistinguishable from not having written it.
+func TestAttachToolIsRegistered(t *testing.T) {
+	reg, err := BuildTools(config.Default(), testDeps(t))
+	if err != nil {
+		t.Fatalf("BuildTools() = %v", err)
+	}
+	tool, ok := reg.Get("attach")
+	if !ok {
+		t.Fatalf("attach not registered (have %v)", reg.Names())
+	}
+	// The model chooses tools from their descriptions, so this one has to say
+	// what it is for without the user knowing the tool exists.
+	desc := strings.ToLower(tool.Description())
+	for _, want := range []string{"pdf"} {
+		if !strings.Contains(desc, want) {
+			t.Errorf("description should mention %q so the model reaches for it: %q", want, desc)
+		}
 	}
 }

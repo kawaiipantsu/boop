@@ -46,6 +46,10 @@ func BuildTools(cfg *config.Config, deps ToolDeps) (*tools.Registry, error) {
 	reg.Register(tools.NewListTool(deps.Workspace))
 	reg.Register(tools.NewFindTool(deps.Workspace))
 	reg.Register(tools.NewSearchTool(deps.Workspace))
+	// attach turns a PDF, DOCX, image or encoded text file into something a
+	// model can consume. read deliberately still refuses a binary, so this is
+	// the entry point for anything that is not plain text.
+	reg.Register(tools.NewAttachTool(deps.Workspace))
 
 	// Command execution.
 	run := tools.NewRunTool(deps.Executor, deps.Workspace)
