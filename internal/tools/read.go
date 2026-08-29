@@ -13,7 +13,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // Byte budgets shared by the filesystem tools.

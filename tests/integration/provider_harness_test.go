@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/tests/fixtures"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/tests/fixtures"
 )
 
 // runTool is the tool schema used throughout these tests.

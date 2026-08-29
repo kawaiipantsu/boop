@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 func TestNewAppliesDefaults(t *testing.T) {

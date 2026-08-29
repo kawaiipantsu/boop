@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // Defaults applied when the corresponding Options field is left zero.

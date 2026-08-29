@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/boop-dev/boop/internal/execution"
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/execution"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // TestTool runs the project's own test suite.

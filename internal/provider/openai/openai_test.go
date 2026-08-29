@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // testAPIKey is an obvious fake; no test here may need a real credential (§41).

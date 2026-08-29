@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 func TestWriteToolCreatesAndReplaces(t *testing.T) {

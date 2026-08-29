@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/internal/store"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/store"
 )
 
 // History is read access to persisted transcripts.

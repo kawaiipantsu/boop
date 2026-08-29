@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/tests/fixtures"
+	"github.com/kawaiipantsu/boop/tests/fixtures"
 )
 
 const anthropicReq = `{"model":"claude-test","max_tokens":1024,"system":"be terse",

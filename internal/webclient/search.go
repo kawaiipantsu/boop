@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/boop-dev/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/config"
 )
 
 // Search limits.

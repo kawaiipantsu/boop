@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // runStream performs a streaming completion and translates Anthropic's typed

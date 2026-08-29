@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // eventBuffer is the channel capacity handed to callers. A small buffer keeps a

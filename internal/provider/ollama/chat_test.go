@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // collect drains an event channel, failing if it does not close promptly.

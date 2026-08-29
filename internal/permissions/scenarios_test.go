@@ -3,7 +3,7 @@ package permissions_test
 import (
 	"testing"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // Scenario tests lock down end-to-end permission outcomes for real workflows,

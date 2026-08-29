@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // liveEnv names the environment variable that opts into tests against a real

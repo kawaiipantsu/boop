@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/boop-dev/boop/internal/permissions"
-	"github.com/boop-dev/boop/internal/webclient"
+	"github.com/kawaiipantsu/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/webclient"
 )
 
 // FetchTool retrieves a web page and returns it as readable text.

@@ -1,4 +1,4 @@
-module github.com/boop-dev/boop
+module github.com/kawaiipantsu/boop
 
 go 1.25.0
 

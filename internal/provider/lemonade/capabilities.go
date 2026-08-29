@@ -3,7 +3,7 @@ package lemonade
 import (
 	"strings"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // backendSuffixes are the execution-backend markers Lemonade appends to model

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // TestChatUsesAPIPrefixedPath pins the one thing about Lemonade's OpenAI

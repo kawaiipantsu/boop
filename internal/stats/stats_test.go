@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 var testDay = time.Date(2026, 8, 29, 10, 0, 0, 0, time.UTC)

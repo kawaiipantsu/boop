@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/tests/fixtures"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/tests/fixtures"
 )
 
 // post is a small helper: send body to path and return the response.

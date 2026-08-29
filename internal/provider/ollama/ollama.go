@@ -26,8 +26,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/internal/provider/openaicompat"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider/openaicompat"
 )
 
 const (

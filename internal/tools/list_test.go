@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // fsTestTreeWorkspace builds a small project-shaped tree used by the listing,

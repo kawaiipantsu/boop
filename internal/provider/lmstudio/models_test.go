@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 func TestRefine(t *testing.T) {

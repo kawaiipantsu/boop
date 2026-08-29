@@ -3,7 +3,7 @@ package webclient
 import (
 	"strings"
 
-	"github.com/boop-dev/boop/internal/version"
+	"github.com/kawaiipantsu/boop/internal/version"
 )
 
 // UserAgentProduct is the product token Boop identifies itself with. It is also
@@ -12,7 +12,7 @@ const UserAgentProduct = "Boop"
 
 // userAgentURL goes in the default User-Agent comment so a site operator
 // reading their logs can find out what is calling and how to stop it.
-const userAgentURL = "+https://github.com/boop-dev/boop"
+const userAgentURL = "+https://github.com/kawaiipantsu/boop"
 
 // maxUserAgentLen bounds a configured User-Agent. Nothing legitimate is this
 // long, and an unbounded header is a way to abuse a remote log pipeline.
@@ -21,7 +21,7 @@ const maxUserAgentLen = 512
 // DefaultUserAgent returns the User-Agent Boop sends when the user has not
 // configured one:
 //
-//	Boop/<version> (+https://github.com/boop-dev/boop)
+//	Boop/<version> (+https://github.com/kawaiipantsu/boop)
 //
 // Attributable traffic is the point. A site operator who does not want Boop
 // crawling them must be able to identify it in a log line and block it.

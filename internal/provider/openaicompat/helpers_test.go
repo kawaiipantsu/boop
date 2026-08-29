@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // newTestServer starts an httptest server and returns a Client pointed at it.

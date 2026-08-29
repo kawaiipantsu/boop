@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // Capabilities reports what the given model can do.

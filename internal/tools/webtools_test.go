@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/config"
-	"github.com/boop-dev/boop/internal/permissions"
-	"github.com/boop-dev/boop/internal/webclient"
+	"github.com/kawaiipantsu/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/webclient"
 )
 
 // webTestClient builds a webclient allowed to reach a local httptest server.

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/execution"
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/execution"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 func TestGitToolPermissionClassification(t *testing.T) {

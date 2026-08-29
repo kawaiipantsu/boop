@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 func streamReq(text string) provider.ChatRequest {

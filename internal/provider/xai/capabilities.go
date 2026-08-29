@@ -3,7 +3,7 @@ package xai
 import (
 	"strings"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // familyRule maps a Grok model-id prefix onto that family's capabilities.

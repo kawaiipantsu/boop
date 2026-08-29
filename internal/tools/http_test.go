@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
-	"github.com/boop-dev/boop/internal/webclient"
+	"github.com/kawaiipantsu/boop/internal/webclient"
 	"io"
 	"net"
 	"net/http"
@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // execLocalHTTPTool returns a tool allowed to reach the test server, which

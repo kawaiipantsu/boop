@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // DefaultCurrency is the currency the bundled rates are expressed in.

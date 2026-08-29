@@ -15,9 +15,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 
-	"github.com/boop-dev/boop/internal/webclient"
+	"github.com/kawaiipantsu/boop/internal/webclient"
 )
 
 // ErrBlockedAddress reports a request refused by the SSRF guard.

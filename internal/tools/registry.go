@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/boop-dev/boop/internal/permissions"
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // Call is a decoded model request to invoke a tool.

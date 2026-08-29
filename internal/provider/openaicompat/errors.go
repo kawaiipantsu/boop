@@ -12,7 +12,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // maxErrorBodyBytes bounds how much of a failing response body is retained in

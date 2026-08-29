@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/boop-dev/boop/tests/fixtures"
+	"github.com/kawaiipantsu/boop/tests/fixtures"
 )
 
 func TestOllamaTags(t *testing.T) {

@@ -1,7 +1,7 @@
 # Boop — see PROJECT.md §36 for the required target contract.
 
 BINARY      := boop
-MODULE      := github.com/boop-dev/boop
+MODULE      := github.com/kawaiipantsu/boop
 VERSION     ?= $(shell sed -n 's/^## \[\([0-9][^]]*\)\].*/\1/p' CHANGELOG.md 2>/dev/null | head -1)
 VERSION     := $(if $(VERSION),$(VERSION),0.1.0-dev)
 COMMIT      := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)

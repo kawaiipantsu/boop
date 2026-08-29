@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/tests/fixtures"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/tests/fixtures"
 )
 
 // drain collects a chat stream into a slice, failing on an unclosed channel.

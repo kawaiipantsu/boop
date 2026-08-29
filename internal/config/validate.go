@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // LogLevels lists the accepted logging levels, in increasing severity (§44).

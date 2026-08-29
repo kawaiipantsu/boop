@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // okResponse is a minimal successful Messages API body.

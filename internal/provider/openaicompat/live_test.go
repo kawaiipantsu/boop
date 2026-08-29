@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/internal/provider/openaicompat"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider/openaicompat"
 )
 
 // Live tests run against a real OpenAI-compatible server and are opt-in.

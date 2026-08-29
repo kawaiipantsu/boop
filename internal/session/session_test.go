@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/execution"
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/internal/session"
-	"github.com/boop-dev/boop/internal/store"
+	"github.com/kawaiipantsu/boop/internal/execution"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/session"
+	"github.com/kawaiipantsu/boop/internal/store"
 )
 
 // newManager returns a Manager over a private in-memory database with a

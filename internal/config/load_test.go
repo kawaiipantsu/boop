@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 func TestLoadCreatesDefaultsWhenMissing(t *testing.T) {

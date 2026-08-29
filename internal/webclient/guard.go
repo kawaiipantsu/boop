@@ -7,7 +7,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/boop-dev/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/config"
 )
 
 // LookupIPFunc resolves a hostname to IP addresses. It is an injection point

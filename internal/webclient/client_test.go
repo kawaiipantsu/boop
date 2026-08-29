@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/config"
 )
 
 // testConfig returns an enabled configuration suitable for httptest servers:

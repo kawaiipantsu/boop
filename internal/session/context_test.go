@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/internal/session"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/session"
 )
 
 // wordCounter counts whitespace-separated words. It exists to prove the

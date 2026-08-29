@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/config"
 )
 
 // staticLookup returns a resolver that always answers with the given IPs.

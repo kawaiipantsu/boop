@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/version"
+	"github.com/kawaiipantsu/boop/internal/version"
 )
 
 func TestDefaultUserAgent(t *testing.T) {
 	ua := DefaultUserAgent()
-	want := "Boop/" + sanitizeToken(version.Get().Version) + " (+https://github.com/boop-dev/boop)"
+	want := "Boop/" + sanitizeToken(version.Get().Version) + " (+https://github.com/kawaiipantsu/boop)"
 	if ua != want {
 		t.Fatalf("DefaultUserAgent() = %q, want %q", ua, want)
 	}

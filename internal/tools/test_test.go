@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/execution"
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/execution"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // execWriteFixture creates a project fixture and returns its root.

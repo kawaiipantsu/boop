@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // dayFormat keys the calendar-day dimension.

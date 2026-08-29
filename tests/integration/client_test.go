@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/tests/fixtures"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/tests/fixtures"
 )
 
 // referenceClient is a deliberately minimal OpenAI-compatible client.

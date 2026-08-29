@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/boop-dev/boop/internal/execution"
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/internal/store"
+	"github.com/kawaiipantsu/boop/internal/execution"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/store"
 )
 
 // Entry is one persisted transcript message together with its storage metadata.

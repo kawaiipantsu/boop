@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/config"
 )
 
 // liveEnvVar opts in to tests that talk to the real internet.

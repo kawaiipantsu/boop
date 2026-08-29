@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // modelMeta is the server-declared metadata Boop keeps for a model. It is the

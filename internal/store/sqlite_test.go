@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/store"
+	"github.com/kawaiipantsu/boop/internal/store"
 )
 
 // newMemoryStore opens a private in-memory database for a single test.

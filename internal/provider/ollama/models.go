@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // tagDetails is the "details" object attached to a model by /api/tags and

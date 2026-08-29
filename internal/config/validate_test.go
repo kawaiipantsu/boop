@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // mutate returns a default config with fn applied, so each table row states

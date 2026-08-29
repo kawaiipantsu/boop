@@ -17,7 +17,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/boop-dev/boop/internal/store"
+	"github.com/kawaiipantsu/boop/internal/store"
 )
 
 // ErrNotFound reports a session, agent or tool call that does not exist. It is

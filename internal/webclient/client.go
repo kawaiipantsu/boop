@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/boop-dev/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/config"
 )
 
 // Default bounds applied when the configuration leaves a field at zero.

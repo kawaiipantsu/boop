@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/config"
 )
 
 // ddgLiteFixture reproduces the shapes the live lite endpoint emits, verified

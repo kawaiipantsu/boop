@@ -8,8 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/internal/session"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/session"
 )
 
 // seedTranscript creates a session and appends the given turns.

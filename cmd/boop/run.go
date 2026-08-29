@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/boop-dev/boop/internal/version"
+	"github.com/kawaiipantsu/boop/internal/version"
 )
 
 // options holds the parsed command-line startup configuration.

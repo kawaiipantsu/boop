@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
-	"github.com/boop-dev/boop/tests/fixtures"
+	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/tests/fixtures"
 )
 
 // shellStub is a deterministic stand-in for the run tool: commands listed in

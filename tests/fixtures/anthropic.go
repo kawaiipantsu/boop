@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // anthropicMessagesPath is the Anthropic Messages endpoint.

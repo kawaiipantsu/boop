@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // Turn is one scripted assistant turn of a [FakeProvider] exchange.

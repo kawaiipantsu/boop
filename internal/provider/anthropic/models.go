@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // modelPageLimit is the page size for the listing. The listing is cursor

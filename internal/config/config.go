@@ -7,7 +7,7 @@ package config
 import (
 	"time"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // Config is the root configuration document (config.yaml).

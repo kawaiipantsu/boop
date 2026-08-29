@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // toolResult is the structured outcome of a tool invocation.

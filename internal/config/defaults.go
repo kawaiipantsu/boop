@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // Version is the schema version written into new config files. Bump it only

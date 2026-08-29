@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/tests/fixtures"
+	"github.com/kawaiipantsu/boop/tests/fixtures"
 )
 
 // streamChat posts a streaming request and returns the parsed SSE frames.

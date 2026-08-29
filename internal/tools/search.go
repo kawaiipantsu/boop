@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // Search limits.

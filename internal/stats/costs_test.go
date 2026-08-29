@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 func almostEqual(t *testing.T, got, want float64) {

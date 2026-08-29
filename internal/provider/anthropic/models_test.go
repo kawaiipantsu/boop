@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 func TestListModels(t *testing.T) {

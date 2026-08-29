@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // fsTestWorkspace builds a workspace in a temporary directory populated with

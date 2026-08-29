@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // Listing limits. Recursion is bounded twice — by depth and by entry count —

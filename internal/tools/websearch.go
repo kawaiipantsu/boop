@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/boop-dev/boop/internal/permissions"
-	"github.com/boop-dev/boop/internal/webclient"
+	"github.com/kawaiipantsu/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/webclient"
 )
 
 // WebSearchTool runs a web search and returns ranked results.

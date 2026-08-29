@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/boop-dev/boop/internal/store"
+	"github.com/kawaiipantsu/boop/internal/store"
 )
 
 func TestSchemaHasEveryRequiredTable(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // DefaultArgumentFragments is how many pieces a tool call's JSON arguments are

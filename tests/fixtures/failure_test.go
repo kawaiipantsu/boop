@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/boop-dev/boop/tests/fixtures"
+	"github.com/kawaiipantsu/boop/tests/fixtures"
 )
 
 func TestInjectedHTTPStatusCodes(t *testing.T) {

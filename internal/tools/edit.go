@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/boop-dev/boop/internal/permissions"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // fsMaxEditHunks bounds the diff summary returned to the model.

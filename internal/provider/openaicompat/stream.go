@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // sseDoneToken terminates an OpenAI-style stream.

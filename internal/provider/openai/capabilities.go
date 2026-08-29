@@ -3,7 +3,7 @@ package openai
 import (
 	"strings"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // familyRule maps an OpenAI model-id prefix onto the capabilities that family

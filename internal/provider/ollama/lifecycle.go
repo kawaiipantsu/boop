@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/boop-dev/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/provider"
 )
 
 // generateRequest is the POST /api/generate body used for residency control.
