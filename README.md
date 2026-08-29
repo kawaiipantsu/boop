@@ -126,6 +126,26 @@ Most AI CLIs are a chat box wired to one vendor. Boop is the other thing: a **lo
 
 ## 📦 Install
 
+### ⚡ One line (Linux and macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kawaiipantsu/boop/main/install.sh | sh
+```
+
+Detects your platform, verifies the download against the release checksums, and
+installs to `~/.local/bin` (or `/usr/local/bin` when writable). It never calls
+`sudo` on your behalf — if the target is not writable it tells you what to run.
+
+Pin a version or change the target with `BOOP_VERSION` and `BOOP_INSTALL`:
+
+```bash
+BOOP_VERSION=v0.1.0-rc.1 BOOP_INSTALL=$HOME/bin \
+  sh -c 'curl -fsSL https://raw.githubusercontent.com/kawaiipantsu/boop/main/install.sh | sh'
+```
+
+Prefer to read it first? Sensible:
+[`install.sh`](install.sh).
+
 ### 🔨 From source
 
 ```bash

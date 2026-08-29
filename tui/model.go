@@ -11,9 +11,12 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/kawaiipantsu/boop/internal/agent"
 	"github.com/kawaiipantsu/boop/internal/app"
 	"github.com/kawaiipantsu/boop/internal/permissions"
 	"github.com/kawaiipantsu/boop/internal/provider"
+	"github.com/kawaiipantsu/boop/internal/session"
+	"github.com/kawaiipantsu/boop/web"
 )
 
 // maxTranscriptEntries bounds transcript memory over a long session.
@@ -55,6 +58,27 @@ type (
 		history []provider.Message
 		entries []Entry
 	}
+	// toolDoneMsg reports that a slash command's tool call returned.
+	//
+	// It is separate from turnDoneMsg because no model was involved: there is
+	// no usage to fold in and no assistant message to close, only a tool line
+	// to complete and output to attach.
+	toolDoneMsg struct {
+		tool     string
+		summary  string
+		content  string
+		duration time.Duration
+		isError  bool
+		err      error
+	}
+	// webStartedMsg carries the outcome of `/web on`.
+	webStartedMsg struct {
+		server *web.Server
+		url    string
+		err    error
+	}
+	// webStoppedMsg carries the outcome of `/web off`.
+	webStoppedMsg struct{ err error }
 	// tickMsg drives the elapsed-time readout.
 	tickMsg time.Time
 	// submitInitialMsg submits the prompt given on the command line.
@@ -108,6 +132,24 @@ type Model struct {
 	stats  Stats
 	notice string
 	pump   *pump
+
+	// fleet is the agent coordinator for this session, built on first use.
+	// It is nil whenever delegation is off, which is what agent.NewFromApp
+	// reports by returning nil (§10).
+	fleet *agent.Coordinator
+	// agentsActive is the running-agent count shown in the header. It is
+	// cached rather than recomputed per frame because View runs on every
+	// keystroke and a snapshot copies the whole fleet; the clock tick keeps
+	// it within a second of the truth.
+	agentsActive int
+
+	// selection is the explicitly chosen context behind /context add and
+	// /context clear (§47).
+	selection *session.Selection
+
+	// webServer is the WebUI started by /web on, nil when it is not running.
+	webServer *web.Server
+	webURL    string
 }
 
 // searchState is the Ctrl+R reverse history search.
@@ -146,6 +188,7 @@ func newModel(ctx context.Context, application *app.App, approver *Approver, ses
 		history:      history,
 		turns:        &sync.WaitGroup{},
 		mouseOn:      true,
+		selection:    session.NewSelection(),
 	}
 	m.histIdx = -1
 	m.pump = newPump(nil)
@@ -177,6 +220,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.resize(msg.Width, msg.Height)
 
 	case tickMsg:
+		// The header's agent count is refreshed here rather than in View,
+		// which must stay a pure function of the model.
+		m.syncAgentCount()
 		return m, tickEvery()
 
 	case flushMsg:
@@ -189,6 +235,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case turnDoneMsg:
 		return m, m.finishTurn(msg)
+
+	case toolDoneMsg:
+		return m, m.finishToolRun(msg)
+
+	case webStartedMsg:
+		return m, m.webStarted(msg)
+
+	case webStoppedMsg:
+		return m, m.webStopped(msg)
 
 	case infoMsg:
 		for _, e := range msg.entries {
@@ -205,6 +260,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sessionTitle = msg.title
 		m.history = msg.history
 		m.stats = Stats{}
+		// The fleet labels its events with a session id, so a new session
+		// gets a new coordinator rather than one reporting the old one.
+		m.fleet, m.agentsActive = nil, 0
 		m.transcript.Clear()
 		for _, e := range msg.entries {
 			m.transcript.Append(e)
@@ -334,6 +392,7 @@ func (m *Model) applyEvents(events []uiEvent) {
 			if ev.text != "" {
 				m.transcript.Append(Entry{Kind: EntrySystem, Text: "agent: " + ev.text})
 			}
+			m.syncAgentCount()
 		}
 	}
 }
@@ -470,7 +529,7 @@ func (m *Model) startTurn(text string) tea.Cmd {
 
 	user := provider.Message{Role: provider.RoleUser, Content: text}
 	m.history = append(m.history, user)
-	history := append([]provider.Message(nil), m.history...)
+	history := m.requestHistory()
 
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.turnCancel = cancel
@@ -605,5 +664,6 @@ func (m *Model) shutdown() tea.Cmd {
 	if broker := m.broker(); broker != nil {
 		broker.Close()
 	}
+	m.stopWebServer()
 	return tea.Quit
 }

@@ -118,7 +118,7 @@ func TestSuggestCommand(t *testing.T) {
 
 func TestHelpTextListsBothSections(t *testing.T) {
 	help := helpText()
-	for _, want := range []string{"/help", "/quit", "/boop", "not wired up yet", "Ctrl+C", "Alt+Enter"} {
+	for _, want := range []string{"/help", "/quit", "/boop", "not built yet", "Ctrl+C", "Alt+Enter"} {
 		if !strings.Contains(help, want) {
 			t.Errorf("help text is missing %q", want)
 		}

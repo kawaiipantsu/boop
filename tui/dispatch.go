@@ -60,9 +60,25 @@ func (m *Model) dispatch(cmd Command) tea.Cmd {
 	case "stats":
 		return m.say(EntrySystem, m.statsText())
 	case "context":
-		return m.say(EntrySystem, m.contextText())
+		return m.contextCmd(cmd)
 	case "tokens":
 		return m.tokensCmd()
+	case "prep", "init":
+		return m.prepCmd(cmd)
+	case "config":
+		return m.configCmd(cmd)
+	case "agents":
+		return m.agentsCmd(cmd)
+	case "run":
+		return m.runCmd(cmd)
+	case "test", "build":
+		return m.execTaskCmd(cmd)
+	case "files", "tree":
+		return m.listCmd(cmd)
+	case "search":
+		return m.searchCmd(cmd)
+	case "web":
+		return m.webCmd(cmd)
 	case "provider":
 		return m.providerCmd(cmd)
 	case "model":
@@ -86,8 +102,13 @@ func (m *Model) say(kind EntryKind, text string) tea.Cmd {
 	return nil
 }
 
-// resetConversation forgets the exchange while keeping the system prompt, so
-// the next turn starts clean without losing Boop's own instructions.
+// resetConversation starts over: the transcript, the conversation, the
+// selected context and the counters all go, and a fresh session record is
+// opened so the next turn is not appended to the old one.
+//
+// This is what separates /reset from /clear. /clear only empties the view —
+// the model still remembers everything — whereas after /reset nothing that
+// came before is sent to the model or written under the old session id.
 func (m *Model) resetConversation() tea.Cmd {
 	var system []provider.Message
 	if len(m.history) > 0 && m.history[0].Role == provider.RoleSystem {
@@ -96,8 +117,14 @@ func (m *Model) resetConversation() tea.Cmd {
 	m.history = append([]provider.Message(nil), system...)
 	m.transcript.Clear()
 	m.stats = Stats{}
+	m.selection.Clear()
+	m.fleet, m.agentsActive = nil, 0
 	m.follow = true
-	return m.say(EntrySystem, "conversation reset; the session record on disk is untouched")
+	if m.app == nil {
+		return m.say(EntrySystem, "conversation reset")
+	}
+	m.say(EntrySystem, "conversation reset; opening a fresh session…")
+	return m.newSessionCmd()
 }
 
 // ---------------------------------------------------------------------------
@@ -126,9 +153,9 @@ func (m *Model) statusText() string {
 	fmt.Fprintf(&b, "mode        %s\n", cfg.Execution.Mode)
 	fmt.Fprintf(&b, "workdir     %s\n", m.workingDir())
 	fmt.Fprintf(&b, "tools       %d registered: %s\n", len(m.app.Tools.Names()), strings.Join(m.app.Tools.Names(), ", "))
-	fmt.Fprintf(&b, "agents      enabled=%t max=%d running=0\n", cfg.Agents.Enabled, cfg.Agents.Max)
+	fmt.Fprintf(&b, "agents      %s\n", m.agentStatusLine())
 	fmt.Fprintf(&b, "web access  %s\n", onOff(cfg.Network.Enabled))
-	fmt.Fprintf(&b, "webui       %s\n", onOff(cfg.Web.Enabled))
+	fmt.Fprintf(&b, "webui       %s\n", m.webStatusLine())
 
 	if m.app.Router != nil {
 		names := m.app.Router.Registry().Names()
@@ -175,6 +202,11 @@ func (m *Model) statsText() string {
 	} else {
 		b.WriteString("  api cost         not tracked (no pricing metadata configured)\n")
 	}
+	if m.app != nil && m.app.Stats != nil {
+		b.WriteString("\n")
+		b.WriteString(trackerText(m.app.Stats.Snapshot(), m.sessionID))
+		b.WriteString("\n")
+	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
@@ -210,29 +242,6 @@ func isLoopbackURL(raw string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
-}
-
-// contextText describes what is currently loaded into the conversation (§47).
-func (m *Model) contextText() string {
-	var b strings.Builder
-	b.WriteString("conversation context\n")
-	byRole := map[provider.Role]int{}
-	tokensByRole := map[provider.Role]int{}
-	for _, msg := range m.history {
-		byRole[msg.Role]++
-		tokensByRole[msg.Role] += estimateTokens(msg.Content)
-	}
-	roles := []provider.Role{provider.RoleSystem, provider.RoleUser, provider.RoleAssistant, provider.RoleTool}
-	for _, role := range roles {
-		if byRole[role] == 0 {
-			continue
-		}
-		fmt.Fprintf(&b, "  %-10s %3d messages  ~%d tokens\n", role, byRole[role], tokensByRole[role])
-	}
-	fmt.Fprintf(&b, "  total      %3d messages  ~%d tokens (estimated at 4 characters per token)\n",
-		len(m.history), m.contextTokens())
-	b.WriteString("\n/context add and /context clear are not wired up yet; use /reset to start over.")
-	return b.String()
 }
 
 func onOff(v bool) string {

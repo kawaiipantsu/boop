@@ -77,47 +77,49 @@ type commandSpec struct {
 }
 
 // commandSpecs is the command table, in the order /help prints it.
+//
+// The order follows §20's grouping rather than the alphabet: a reader scanning
+// /help is looking for a capability, not a letter.
 var commandSpecs = []commandSpec{
 	{Name: "help", Summary: "list commands", Status: cmdReady},
-	{Name: "status", Summary: "runtime, provider health and session state", Status: cmdReady},
-	{Name: "stats", Summary: "counters for this session", Status: cmdReady},
-	{Name: "tokens", Summary: "token usage for this session", Status: cmdReady},
-	{Name: "context", Summary: "what is currently in the conversation", Status: cmdReady},
+	{Name: "boop", Summary: "boop", Status: cmdReady},
+
+	{Name: "prep", Summary: "survey the project and write Boop.md", Status: cmdReady},
+	{Name: "init", Summary: "alias for /prep", Status: cmdReady},
+
+	{Name: "config", Summary: "show the effective configuration (credentials are never printed)", Status: cmdReady},
 	{Name: "provider", Args: "[name]", Summary: "show or switch the active provider", Status: cmdReady},
 	{Name: "model", Args: "[id]", Summary: "show or switch the active model", Status: cmdReady},
 	{Name: "models", Args: "[provider]", Summary: "list models a provider offers", Status: cmdReady},
+
+	{Name: "agents", Args: "[list|on|off|max <n>|stop <id>]", Summary: "inspect and control the agent fleet", Status: cmdReady},
+
+	{Name: "run", Args: "<command>", Summary: "run a shell command through the run tool", Status: cmdReady},
+	{Name: "test", Args: "[command]", Summary: "run the project test suite through the test tool", Status: cmdReady},
+	{Name: "build", Args: "[command]", Summary: "build the project through the build tool", Status: cmdReady},
+
+	{Name: "files", Args: "[path]", Summary: "list one directory of the project", Status: cmdReady},
+	{Name: "tree", Args: "[path] [depth]", Summary: "list the project recursively", Status: cmdReady},
+	{Name: "search", Args: "<pattern>", Summary: "search the workspace (use the model for web search)", Status: cmdReady},
+
+	{Name: "context", Args: "[add <path>|clear]", Summary: "show or change what is sent with each request", Status: cmdReady},
 	{Name: "permissions", Args: "[mode confirm|auto] [clear]", Summary: "show or adjust the permission policy", Status: cmdReady},
+
+	{Name: "status", Summary: "runtime, provider health and session state", Status: cmdReady},
+	{Name: "stats", Summary: "counters for this session", Status: cmdReady},
+	{Name: "tokens", Summary: "token usage for this session", Status: cmdReady},
+
 	{Name: "session", Args: "[new|list|save <title>|load <id>]", Summary: "manage sessions", Status: cmdReady},
+
+	{Name: "web", Args: "[on|off]", Summary: "start or stop the local WebUI", Status: cmdReady},
+
 	{Name: "clear", Summary: "clear the transcript, keep the conversation", Status: cmdReady},
-	{Name: "reset", Summary: "clear the transcript and forget the conversation", Status: cmdReady},
-	{Name: "boop", Summary: "boop", Status: cmdReady},
+	{Name: "reset", Summary: "clear the transcript and start a fresh session", Status: cmdReady},
 	{Name: "quit", Summary: "leave Boop", Status: cmdReady},
 	{Name: "exit", Summary: "leave Boop", Status: cmdReady},
 
-	{Name: "prep", Summary: "survey the project and write Boop.md", Status: cmdPending,
-		Blocker: "the /prep driver in internal/project is not wired to the TUI yet"},
-	{Name: "init", Summary: "create a starter Boop.md", Status: cmdPending,
-		Blocker: "project bootstrap is not wired to the TUI yet"},
-	{Name: "config", Summary: "edit configuration interactively", Status: cmdPending,
-		Blocker: "the interactive config editor (§55) is not built yet"},
-	{Name: "agents", Args: "[on|off|max <n>|list|stop <id>]", Summary: "control the agent scheduler", Status: cmdPending,
-		Blocker: "the agent scheduler (§10–11) is not wired to the TUI yet"},
-	{Name: "run", Args: "<command>", Summary: "run a shell command directly", Status: cmdPending,
-		Blocker: "direct execution from the TUI is not wired yet; ask the model to run it and approve the request"},
-	{Name: "files", Summary: "list project files", Status: cmdPending,
-		Blocker: "the project file browser (§48) is not wired to the TUI yet"},
-	{Name: "tree", Summary: "show the project tree", Status: cmdPending,
-		Blocker: "the project tree view is not wired to the TUI yet"},
-	{Name: "search", Args: "<query>", Summary: "search the project", Status: cmdPending,
-		Blocker: "project search is not wired to the TUI yet; ask the model to search"},
-	{Name: "test", Summary: "run the project test suite", Status: cmdPending,
-		Blocker: "the test runner is not wired to the TUI yet; ask the model to run the tests"},
-	{Name: "build", Summary: "build the project", Status: cmdPending,
-		Blocker: "the build runner is not wired to the TUI yet; ask the model to build"},
-	{Name: "web", Args: "[on|off]", Summary: "control the local WebUI", Status: cmdPending,
-		Blocker: "the WebUI (§22) is not built yet"},
 	{Name: "gui", Summary: "launch the native GUI", Status: cmdPending,
-		Blocker: "the native GUI (§4.5) is a later milestone"},
+		Blocker: "the native GUI (§4.5) is milestone 13 and is not built"},
 }
 
 // lookupCommand finds a spec by name.
@@ -179,7 +181,7 @@ func helpText() string {
 	for _, spec := range ready {
 		b.WriteString("  " + padRight(commandUsage(spec), width) + "  " + spec.Summary + "\n")
 	}
-	b.WriteString("\nnot wired up yet — these report what they are waiting for\n")
+	b.WriteString("\nnot built yet — these report why rather than pretending\n")
 	for _, spec := range pending {
 		b.WriteString("  " + padRight(commandUsage(spec), width) + "  " + spec.Summary + "\n")
 	}
