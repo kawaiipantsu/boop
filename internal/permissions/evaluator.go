@@ -201,6 +201,8 @@ var categoryLabels = map[Category]string{
 	CatGitCommit:        "committing to git",
 	CatGitPush:          "pushing to a git remote",
 	CatNetworkHTTP:      "network requests",
+	CatNetworkFetch:     "fetching a web page",
+	CatNetworkSearch:    "searching the web",
 	CatProductionChange: "production changes",
 }
 
@@ -215,6 +217,8 @@ func DefaultRules() map[Category]Rule {
 		CatGitCommit:        RuleConfirm,
 		CatGitPush:          RuleConfirm,
 		CatNetworkHTTP:      RuleConfirm,
+		CatNetworkFetch:     RuleConfirm,
+		CatNetworkSearch:    RuleAllow,
 		CatProductionChange: RuleConfirm,
 	}
 }

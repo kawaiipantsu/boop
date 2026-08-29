@@ -34,10 +34,16 @@ type options struct {
 
 // run parses arguments and dispatches to a startup mode.
 func run(args []string, stdout, stderr io.Writer) error {
-	// `boop version` is accepted as a subcommand alongside --version.
-	if len(args) > 0 && args[0] == "version" {
-		fmt.Fprintln(stdout, version.Get())
-		return nil
+	// Subcommands are matched before flag parsing, so their own arguments are
+	// not mistaken for a bare prompt.
+	if len(args) > 0 {
+		switch args[0] {
+		case "version":
+			fmt.Fprintln(stdout, version.Get())
+			return nil
+		case "prep":
+			return runPrep(context.Background(), args[1:], stdout, stderr)
+		}
 	}
 	opts, err := parse(args, stderr)
 	if err != nil {
@@ -118,6 +124,7 @@ usage:
   boop                              start the TUI
   boop <prompt...>                  submit a prompt, then continue interactively
   boop --prompt "<text>"            same, when the text would confuse flag parsing
+  boop prep                         inspect the project and write Boop.md
   boop version                      print build metadata
 
 examples:

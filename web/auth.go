@@ -8,6 +8,28 @@
 // web-server default: a LAN is not trustworthy, an unauthenticated bind beyond
 // loopback is a mistake rather than a convenience, and a browser will happily
 // point a hostile page at a loopback socket.
+//
+// # Reverse proxy deployment (§53)
+//
+// Boop is a local/LAN service. Public exposure is the proxy's job, not Boop's:
+// the proxy terminates TLS, authenticates the public, and rate limits. Boop
+// itself must be reachable from the proxy over a trusted private connection.
+//
+// A proxy in front of Boop must:
+//
+//   - forward the WebSocket upgrade for GET /api/events, passing through the
+//     Connection, Upgrade and Sec-WebSocket-* headers, and disable response
+//     buffering and any read timeout shorter than the connection's lifetime;
+//   - preserve the browser's Origin header unchanged, since origin validation
+//     happens in Boop;
+//   - set X-Forwarded-Proto and X-Forwarded-Host to the public scheme and
+//     host, and X-Forwarded-For to the client address.
+//
+// Boop reads none of those X-Forwarded-* headers unless web.trusted_proxy_headers
+// is set. They are client-supplied, so trusting them by default would let any
+// caller claim to be same-origin or forge its address in the log. With the flag
+// set, they determine the origin a request is compared against and the address
+// that is logged.
 package web
 
 import (
@@ -23,14 +45,11 @@ import (
 	"github.com/kawaiipantsu/boop/internal/config"
 )
 
-// Authentication errors. They are deliberately coarse: telling a caller
-// whether a token was absent or merely wrong is information they can use.
-var (
-	// ErrUnauthorized reports a request without a usable credential.
-	ErrUnauthorized = errors.New("web: authentication required")
-	// ErrForbiddenOrigin reports a request whose Origin is not allowed.
-	ErrForbiddenOrigin = errors.New("web: origin is not allowed")
-)
+// ErrUnauthorized reports a request without a usable credential.
+//
+// It is deliberately coarse: telling a caller whether a token was absent or
+// merely wrong is information they can use.
+var ErrUnauthorized = errors.New("web: authentication required")
 
 // ErrInsecureBind reports a refusal to start: the configured bind address is
 // reachable from other machines and no authentication is configured.

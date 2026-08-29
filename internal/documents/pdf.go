@@ -300,7 +300,7 @@ func explainEmptyPDF(res *PDFResult) error {
 	}
 }
 
-var unsupportedFilterRe = regexp.MustCompile(`(?:unsupported|unknown) filter[: ]*([A-Za-z0-9]*)`)
+var unsupportedFilterRe = regexp.MustCompile(`(?:unsupported|unknown) filter[:\s]*/?([A-Za-z0-9]*)`)
 
 // unsupportedFilterName pulls the filter name out of the reader's panic text,
 // so the user is told "LZWDecode" rather than "extraction failed".

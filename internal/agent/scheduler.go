@@ -309,27 +309,28 @@ type Scheduler struct {
 	Now func() time.Time
 
 	mu  sync.Mutex
-	max int
+	sem *semaphore
 }
 
 // NewScheduler returns a scheduler bounded to max concurrent tasks. A
 // non-positive max uses DefaultMaxConcurrency.
 func NewScheduler(exec TaskExecutor, max int) *Scheduler {
-	if max <= 0 {
-		max = DefaultMaxConcurrency
+	return &Scheduler{Executor: exec, sem: newSemaphore(max)}
+}
+
+// slots returns the shared concurrency pool, creating it for a zero-value
+// Scheduler so the type is usable without its constructor.
+func (s *Scheduler) slots() *semaphore {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.sem == nil {
+		s.sem = newSemaphore(DefaultMaxConcurrency)
 	}
-	return &Scheduler{Executor: exec, max: max}
+	return s.sem
 }
 
 // Max returns the concurrency limit.
-func (s *Scheduler) Max() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.max <= 0 {
-		return DefaultMaxConcurrency
-	}
-	return s.max
-}
+func (s *Scheduler) Max() int { return s.slots().limitOf() }
 
 // SetMax changes the concurrency limit, backing `/agents max <int>`.
 //
@@ -340,9 +341,7 @@ func (s *Scheduler) SetMax(n int) error {
 	if n < 1 {
 		return fmt.Errorf("agents max must be at least 1, got %d", n)
 	}
-	s.mu.Lock()
-	s.max = n
-	s.mu.Unlock()
+	s.slots().setLimit(n)
 	return nil
 }
 
@@ -359,6 +358,12 @@ func (s *Scheduler) clock() time.Time {
 // and everything independent of it keeps going. Run returns an error only when
 // the graph itself is unusable or the context is cancelled — in the latter case
 // the partial results are still returned, and no goroutine outlives the call.
+//
+// Concurrency slots are shared with every other Run of the same scheduler, so
+// the limit is global. A Run started from inside a task — a worker that plans
+// and delegates further — gives up its own slot for the duration, because a
+// parent that holds a slot while waiting for its children is the classic way to
+// deadlock a nested scheduler.
 func (s *Scheduler) Run(ctx context.Context, tasks []Task) ([]TaskResult, error) {
 	if s.Executor == nil {
 		return nil, ErrNoExecutor
@@ -370,18 +375,36 @@ func (s *Scheduler) Run(ctx context.Context, tasks []Task) ([]TaskResult, error)
 		return nil, err
 	}
 
+	slots := s.slots()
+	if holdsPermit(ctx) {
+		slots.release()
+		defer slots.reclaim()
+	}
+
 	st := newRunState(tasks)
 	done := make(chan TaskResult, len(tasks))
 	held := make(map[string]string, len(tasks))
 	var wg sync.WaitGroup
 	running := 0
 	cancelled := ctx.Err() != nil
+	taskCtx := withPermit(ctx)
 
 	for !cancelled {
-		for running < s.Max() {
+		for {
 			t := st.nextReady(held)
 			if t == nil {
 				break
+			}
+			if !slots.tryAcquire() {
+				if running > 0 {
+					break // wait for one of our own tasks to free a slot
+				}
+				// Nothing of ours is running, so waiting on done would hang.
+				// Block for a slot instead, which another run will free.
+				if err := slots.acquire(ctx); err != nil {
+					cancelled = true
+					break
+				}
 			}
 			st.status[t.ID] = TaskRunning
 			for _, w := range t.writePaths() {
@@ -392,8 +415,12 @@ func (s *Scheduler) Run(ctx context.Context, tasks []Task) ([]TaskResult, error)
 			task := *t
 			go func() {
 				defer wg.Done()
-				done <- s.execute(ctx, task)
+				defer slots.release()
+				done <- s.execute(taskCtx, task)
 			}()
+		}
+		if cancelled {
+			break
 		}
 
 		if running == 0 {
@@ -552,15 +579,21 @@ func (st *runState) apply(res TaskResult, held map[string]string) {
 	if res.Status == TaskComplete {
 		return
 	}
-	st.blockDependents(res.TaskID, res.Status, res.FinishedAt)
+	st.failDependents(res.TaskID, res.Status, res.FinishedAt)
 }
 
-// blockDependents marks everything downstream of a dead task as blocked.
+// failDependents propagates a dead task's outcome to everything downstream.
 //
 // This is the defined failure policy: dependents never run on the output of a
 // task that did not produce any, and they are reported as blocked rather than
-// failed so the user can see which task was the actual cause.
-func (st *runState) blockDependents(id string, cause TaskStatus, at time.Time) {
+// failed, so the user can see which task was the actual cause. A cancelled task
+// propagates cancellation instead, because "blocked" would imply the run failed
+// when in fact the user stopped it.
+func (st *runState) failDependents(id string, cause TaskStatus, at time.Time) {
+	downstream := TaskBlocked
+	if cause == TaskCancelled {
+		downstream = TaskCancelled
+	}
 	queue := append([]string(nil), st.dependents[id]...)
 	seen := map[string]bool{id: true}
 	for len(queue) > 0 {
@@ -573,10 +606,10 @@ func (st *runState) blockDependents(id string, cause TaskStatus, at time.Time) {
 		if st.status[next] != TaskPending {
 			continue
 		}
-		st.status[next] = TaskBlocked
+		st.status[next] = downstream
 		st.results[next] = TaskResult{
 			TaskID:     next,
-			Status:     TaskBlocked,
+			Status:     downstream,
 			Error:      fmt.Sprintf("dependency %s %s", id, cause),
 			FinishedAt: at,
 		}

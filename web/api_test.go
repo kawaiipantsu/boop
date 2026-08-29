@@ -230,7 +230,9 @@ func TestPutConfig(t *testing.T) {
 // TestPutConfigKeepsRedactedHeaders: a frontend that GETs then PUTs must not
 // overwrite a credential with the redaction placeholder it was shown.
 func TestPutConfigKeepsRedactedHeaders(t *testing.T) {
-	const headerSecret = "Bearer ORIGINAL"
+	// A plain value: config.Validate rejects credential-shaped header values
+	// outright, and this test is about the redaction round trip, not that rule.
+	const headerSecret = "original-value"
 
 	cfg := config.Default()
 	pc := cfg.Providers["ollama"]
@@ -643,3 +645,82 @@ func TestStatsWithoutTracker(t *testing.T) {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// TestTurnConflict: two turns on one session would interleave tool calls and
+// transcript writes, so the second is refused rather than queued silently.
+func TestTurnConflict(t *testing.T) {
+	application := newTestApp(t)
+	srv := newTestServer(t, func(o *Options) {
+		o.App = application
+		o.Config = application.Config
+	})
+
+	sess, err := application.Sessions.Create(t.Context(), session.CreateOptions{
+		ProjectPath: application.Workspace.Root(),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	// Pretend a turn is already running for this session.
+	if !srv.beginTurn(sess.ID, func() {}) {
+		t.Fatal("beginTurn refused the first turn")
+	}
+	t.Cleanup(func() { srv.endTurn(sess.ID) })
+
+	rec, body := doJSON(t, srv, http.MethodPost, "/api/message",
+		messageRequest{SessionID: sess.ID, Content: "hello"})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409 (body %s)", rec.Code, body)
+	}
+	var env errorEnvelope
+	if err := json.Unmarshal(body, &env); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if env.Error.Code != codeConflict {
+		t.Errorf("code = %q, want %q", env.Error.Code, codeConflict)
+	}
+}
+
+// TestCancelTurnInterrupts covers §51: a running turn can be stopped, and
+// cancelling a session that is idle reports that plainly.
+func TestCancelTurnInterrupts(t *testing.T) {
+	srv := newTestServer(t, nil)
+
+	cancelled := make(chan struct{})
+	if !srv.beginTurn("s1", func() { close(cancelled) }) {
+		t.Fatal("beginTurn failed")
+	}
+	if !srv.cancelTurn("s1") {
+		t.Fatal("cancelTurn reported no running turn")
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("the turn's cancel function was never called")
+	}
+	srv.endTurn("s1")
+	if srv.cancelTurn("s1") {
+		t.Error("cancelTurn reported success for an idle session")
+	}
+}
+
+// TestShutdownCancelsRunningTurns: §58 requires the model loop to stop, not to
+// be abandoned mid-flight.
+func TestShutdownCancelsRunningTurns(t *testing.T) {
+	srv, err := New(Options{Config: config.Default(), Logger: discardLogger()})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	cancelled := make(chan struct{})
+	if !srv.beginTurn("s1", func() { close(cancelled) }) {
+		t.Fatal("beginTurn failed")
+	}
+	if err := srv.Shutdown(t.Context()); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown left a turn running")
+	}
+}

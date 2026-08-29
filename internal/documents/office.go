@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"path"
 	"sort"
 	"strconv"
@@ -152,7 +153,13 @@ func openZipSource(data []byte, opts Options) (*zipSource, error) {
 			ErrArchiveTooLarge, len(zr.File), opts.MaxArchiveEntries)
 	}
 
-	src := &zipSource{files: make(map[string]*zip.File, len(zr.File)), budget: opts.MaxArchiveBytes}
+	// A disabled byte limit is modelled as an effectively infinite budget so
+	// the per-read accounting needs no special case.
+	budget := opts.MaxArchiveBytes
+	if budget <= 0 {
+		budget = math.MaxInt64
+	}
+	src := &zipSource{files: make(map[string]*zip.File, len(zr.File)), budget: budget}
 
 	var declared int64
 	for _, f := range zr.File {
@@ -235,8 +242,14 @@ func (z *zipSource) read(name string) ([]byte, error) {
 
 	var buf bytes.Buffer
 	// Read one byte past the budget so an over-long entry is detected rather
-	// than silently truncated into malformed XML.
-	n, err := io.Copy(&buf, io.LimitReader(rc, z.budget+1))
+	// than silently truncated into malformed XML. The clamp matters: budget is
+	// MaxInt64 when the limit is disabled, and +1 there would wrap negative
+	// and make LimitReader read nothing at all.
+	limit := z.budget
+	if limit < math.MaxInt64 {
+		limit++
+	}
+	n, err := io.Copy(&buf, io.LimitReader(rc, limit))
 	if err != nil {
 		return nil, fmt.Errorf("%w: reading %s: %v", ErrNotOffice, name, err)
 	}

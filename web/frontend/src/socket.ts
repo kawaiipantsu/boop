@@ -5,15 +5,27 @@
 // else — no UI, no application state.
 
 import { websocketUrl } from './api.js';
-import { parseEvent, type BoopEvent } from './protocol.js';
+import {
+  parseServerMessage, PROTOCOL_VERSION,
+  type ApprovalEvent, type BoopEvent, type HelloData,
+} from './protocol.js';
 
 export type ConnectionState = 'connecting' | 'open' | 'reconnecting' | 'offline';
 
 export interface SocketOptions {
-  /** Candidate server paths, tried in order until one opens. */
-  paths?: string[];
+  /** Server path of the event stream (web.EventsPath). */
+  path?: string;
+  /** A core bus event, unwrapped from the `event` envelope. */
   onEvent: (event: BoopEvent) => void;
   onState: (state: ConnectionState, detail: { attempt: number; nextRetryMs: number }) => void;
+  /** Connect-time snapshot; authoritative for session and approval queue. */
+  onHello?: (hello: HelloData) => void;
+  /** A change to the approval queue, from any connected frontend (§50). */
+  onApproval?: (event: ApprovalEvent) => void;
+  /** The server rejected a frame we sent, or reported a runtime problem. */
+  onServerError?: (message: string, id: string) => void;
+  /** We fell behind and the server dropped frames; the caller must resync. */
+  onDropped?: (count: number) => void;
   /** Fires on every successful (re)connect so the caller can resync via REST. */
   onOpen?: () => void;
   /** Injectable for tests. */
@@ -38,33 +50,33 @@ const OPEN = 1;
 const BASE_DELAY_MS = 500;
 const MAX_DELAY_MS = 30_000;
 
-/** Default event-stream paths, most likely first. */
-export const DEFAULT_PATHS = ['/api/events', '/api/ws', '/ws'];
+/** web.EventsPath. */
+export const DEFAULT_PATH = '/api/events';
 
 export class EventSocket {
-  private readonly opts: Required<Omit<SocketOptions, 'onOpen'>> & { onOpen?: () => void };
-  private readonly paths: string[];
+  private readonly opts: SocketOptions & {
+    path: string;
+    factory: (url: string) => WebSocketLike;
+    setTimer: (fn: () => void, ms: number) => number;
+    clearTimer: (handle: number) => void;
+    random: () => number;
+  };
+
   private socket: WebSocketLike | null = null;
-  private pathIndex = 0;
-  /** Locked to the path that last opened successfully; stops path probing. */
-  private lockedPath: string | null = null;
   private attempt = 0;
   private timer: number | null = null;
   private stopped = false;
+  private nextFrameID = 0;
 
   constructor(options: SocketOptions) {
-    this.paths = options.paths && options.paths.length > 0 ? options.paths : DEFAULT_PATHS;
     this.opts = {
-      paths: this.paths,
-      onEvent: options.onEvent,
-      onState: options.onState,
+      ...options,
+      path: options.path ?? DEFAULT_PATH,
       factory: options.factory ?? ((url) => new WebSocket(url) as unknown as WebSocketLike),
-      now: options.now ?? (() => Date.now()),
       setTimer: options.setTimer ?? ((fn, ms) => setTimeout(fn, ms) as unknown as number),
       clearTimer: options.clearTimer ?? ((h) => clearTimeout(h)),
       random: options.random ?? Math.random,
     };
-    if (options.onOpen) this.opts.onOpen = options.onOpen;
   }
 
   get connected(): boolean {
@@ -99,11 +111,18 @@ export class EventSocket {
     this.open();
   }
 
-  /** Best-effort client→server frame. Returns false when the socket is down. */
-  send(payload: unknown): boolean {
+  /**
+   * Best-effort client→server frame in the server's envelope
+   * (web.ClientMessageEnvelope). Returns false when the socket is down, which
+   * is the caller's cue to fall back to REST.
+   */
+  send(type: string, data?: unknown): boolean {
     if (!this.socket || this.socket.readyState !== OPEN) return false;
+    this.nextFrameID += 1;
+    const frame: Record<string, unknown> = { type, id: `c${this.nextFrameID}` };
+    if (data !== undefined) frame['data'] = data;
     try {
-      this.socket.send(JSON.stringify(payload));
+      this.socket.send(JSON.stringify(frame));
       return true;
     } catch {
       return false;
@@ -117,15 +136,9 @@ export class EventSocket {
     return Math.max(BASE_DELAY_MS / 2, Math.round(raw + jitter));
   }
 
-  private nextPath(): string {
-    if (this.lockedPath) return this.lockedPath;
-    const path = this.paths[this.pathIndex % this.paths.length] as string;
-    return path;
-  }
-
   private open(): void {
     if (this.stopped) return;
-    const path = this.nextPath();
+    const path = this.opts.path;
     this.opts.onState(this.attempt === 0 ? 'connecting' : 'reconnecting', {
       attempt: this.attempt,
       nextRetryMs: 0,
@@ -143,14 +156,12 @@ export class EventSocket {
     socket.onopen = () => {
       if (this.socket !== socket) return;
       this.attempt = 0;
-      this.lockedPath = path;
       this.opts.onState('open', { attempt: 0, nextRetryMs: 0 });
       this.opts.onOpen?.();
     };
     socket.onmessage = (ev) => {
       if (this.socket !== socket) return;
-      const parsed = parseEvent(ev.data);
-      if (parsed) this.opts.onEvent(parsed);
+      this.receive(ev.data);
     };
     socket.onerror = () => {
       /* onclose always follows; handled there. */
@@ -158,9 +169,40 @@ export class EventSocket {
     socket.onclose = () => {
       if (this.socket !== socket) return;
       this.socket = null;
-      if (!this.lockedPath) this.pathIndex += 1;
       this.scheduleRetry();
     };
+  }
+
+  /** Decodes one server frame and routes it. Exposed for tests. */
+  receive(raw: unknown): void {
+    const msg = parseServerMessage(raw);
+    if (!msg) return;
+    switch (msg.kind) {
+      case 'hello':
+        if (msg.hello.protocol !== PROTOCOL_VERSION) {
+          this.opts.onServerError?.(
+            `This page speaks event protocol ${PROTOCOL_VERSION} but the server speaks ${msg.hello.protocol}. Reload after rebuilding the WebUI.`,
+            '',
+          );
+        }
+        this.opts.onHello?.(msg.hello);
+        break;
+      case 'event':
+        this.opts.onEvent(msg.event);
+        break;
+      case 'approval':
+        this.opts.onApproval?.(msg.approval);
+        break;
+      case 'error':
+        this.opts.onServerError?.(msg.message, msg.id);
+        break;
+      case 'dropped':
+        this.opts.onDropped?.(msg.count);
+        break;
+      case 'ack':
+      case 'pong':
+        break;
+    }
   }
 
   private scheduleRetry(): void {

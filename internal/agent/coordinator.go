@@ -227,10 +227,15 @@ func (c *Coordinator) SetMaxAgents(n int) error {
 // Finish or Stop. Internal task execution uses the same path but starts the
 // agent working immediately, so a running agent is never observable as idle.
 func (c *Coordinator) Spawn(spec SpawnSpec) (*Agent, error) {
-	return c.spawn(spec, StatusIdle)
+	return c.spawn(spec, StatusIdle, nil)
 }
 
-func (c *Coordinator) spawn(spec SpawnSpec, initial AgentStatus) (*Agent, error) {
+// spawn registers an agent together with the cancel function that stops it.
+//
+// The two happen under one lock deliberately: registering first and attaching
+// the canceller afterwards would leave a window in which `/agents stop` marks
+// an agent cancelled while its worker keeps running, unaware.
+func (c *Coordinator) spawn(spec SpawnSpec, initial AgentStatus, cancel context.CancelFunc) (*Agent, error) {
 	c.mu.Lock()
 
 	if !c.enabled {
@@ -287,7 +292,7 @@ func (c *Coordinator) spawn(spec SpawnSpec, initial AgentStatus) (*Agent, error)
 		Now:       c.now,
 		Silent:    true,
 	})
-	c.agents[a.ID] = &record{agent: a, done: make(chan struct{})}
+	c.agents[a.ID] = &record{agent: a, done: make(chan struct{}), cancel: cancel}
 	c.order = append(c.order, a.ID)
 	c.trimLocked()
 	c.mu.Unlock()
@@ -654,13 +659,16 @@ func (c *Coordinator) executeTask(ctx context.Context, task Task) (TaskOutcome, 
 	}
 	rc := runContextFrom(ctx)
 
+	actx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	// Spawning already working means the agent is never visible as idle while
 	// a goroutine is driving it, which Wait relies on.
 	a, err := c.spawn(SpawnSpec{
 		Name:     taskName(task),
 		Task:     task.Description,
 		ParentID: rc.parentID,
-	}, StatusWorking)
+	}, StatusWorking, cancel)
 	if err != nil {
 		// Depth, budget and disabled all land here as ordinary task failures:
 		// the scheduler records them, blocks the dependents and moves on. An
@@ -672,12 +680,6 @@ func (c *Coordinator) executeTask(ctx context.Context, task Task) (TaskOutcome, 
 	if lookupErr != nil {
 		return TaskOutcome{}, lookupErr
 	}
-
-	actx, cancel := context.WithCancel(ctx)
-	c.mu.Lock()
-	rec.cancel = cancel
-	c.mu.Unlock()
-	defer cancel()
 	defer rec.finish()
 
 	// Anything this worker spawns is its child, which is how the depth cap

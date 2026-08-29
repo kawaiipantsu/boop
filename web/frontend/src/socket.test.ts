@@ -3,7 +3,7 @@ import { beforeEach, afterEach, describe, it } from 'node:test';
 
 import { setupDom } from './testing/dom.js';
 import { EventSocket, type ConnectionState, type WebSocketLike } from './socket.js';
-import type { BoopEvent } from './protocol.js';
+import type { ApprovalEvent, BoopEvent, HelloData } from './protocol.js';
 
 class FakeSocket implements WebSocketLike {
   static instances: FakeSocket[] = [];
@@ -40,6 +40,10 @@ interface Harness {
   socket: EventSocket;
   events: BoopEvent[];
   states: Array<[ConnectionState, number]>;
+  hellos: HelloData[];
+  approvals: ApprovalEvent[];
+  errors: string[];
+  dropped: number[];
   run: () => void;
   pending: () => number;
   opens: number;
@@ -49,12 +53,20 @@ function harness(): Harness {
   FakeSocket.instances = [];
   const events: BoopEvent[] = [];
   const states: Array<[ConnectionState, number]> = [];
+  const hellos: HelloData[] = [];
+  const approvals: ApprovalEvent[] = [];
+  const errors: string[] = [];
+  const dropped: number[] = [];
   let timers: Array<() => void> = [];
-  const h: Partial<Harness> = { events, states, opens: 0 };
+  const h: Partial<Harness> = { events, states, hellos, approvals, errors, dropped, opens: 0 };
 
   const socket = new EventSocket({
     onEvent: (ev) => events.push(ev),
     onState: (state, detail) => states.push([state, detail.nextRetryMs]),
+    onHello: (hello) => hellos.push(hello),
+    onApproval: (ev) => approvals.push(ev),
+    onServerError: (msg) => errors.push(msg),
+    onDropped: (count) => dropped.push(count),
     onOpen: () => {
       h.opens = (h.opens ?? 0) + 1;
     },
@@ -97,16 +109,64 @@ describe('EventSocket', () => {
     assert.equal(h.socket.connected, true);
   });
 
-  it('parses incoming frames and drops malformed ones', () => {
+  it('unwraps the server envelope and drops malformed frames', () => {
     const h = harness();
     h.socket.start();
     const s = FakeSocket.instances[0] as FakeSocket;
     s.open();
-    s.deliver('{"type":"model.token","payload":"a"}');
+    s.deliver('{"type":"event","event":{"type":"model.token","payload":"a"}}');
     s.deliver('<<not json>>');
-    s.deliver('{"no":"type"}');
+    s.deliver('{"type":"event"}');
+    s.deliver('{"type":"model.token","payload":"a"}'); // bare event, not the envelope
+    s.deliver('{"type":"something.new"}');
     assert.equal(h.events.length, 1);
     assert.equal(h.events[0]?.type, 'model.token');
+  });
+
+  it('routes hello, approval, error and dropped frames', () => {
+    const h = harness();
+    h.socket.start();
+    const s = FakeSocket.instances[0] as FakeSocket;
+    s.open();
+    s.deliver(JSON.stringify({
+      type: 'hello',
+      data: {
+        protocol: 1,
+        session_id: 's-1',
+        mode: 'confirm',
+        pending_approvals: [{ id: 'p1', action: { tool: 'run', detail: 'ls' } }],
+      },
+    }));
+    assert.equal(h.hellos.length, 1);
+    assert.equal(h.hellos[0]?.sessionId, 's-1');
+    assert.equal(h.hellos[0]?.pendingApprovals[0]?.id, 'p1');
+
+    s.deliver(JSON.stringify({
+      type: 'approval',
+      data: { kind: 'added', approval: { id: 'p2', action: { tool: 'write', detail: '/tmp/x' } } },
+    }));
+    assert.equal(h.approvals[0]?.kind, 'added');
+    assert.equal(h.approvals[0]?.approval?.id, 'p2');
+
+    s.deliver(JSON.stringify({ type: 'error', id: 'c1', error: { code: 'bad_request', message: 'nope' } }));
+    assert.deepEqual(h.errors, ['nope']);
+
+    s.deliver(JSON.stringify({ type: 'dropped', data: { count: 12 } }));
+    assert.deepEqual(h.dropped, [12]);
+
+    // ack and pong are accepted and ignored.
+    s.deliver(JSON.stringify({ type: 'ack', id: 'c1', data: {} }));
+    s.deliver(JSON.stringify({ type: 'pong', id: 'c2' }));
+    assert.equal(h.errors.length, 1);
+  });
+
+  it('warns when the server speaks a different envelope version', () => {
+    const h = harness();
+    h.socket.start();
+    const s = FakeSocket.instances[0] as FakeSocket;
+    s.open();
+    s.deliver(JSON.stringify({ type: 'hello', data: { protocol: 99 } }));
+    assert.match(h.errors[0] ?? '', /protocol 1 but the server speaks 99/);
   });
 
   it('backs off exponentially and caps the delay', () => {
@@ -135,21 +195,13 @@ describe('EventSocket', () => {
     assert.equal(last?.[1], 500);
   });
 
-  it('probes the alternative event paths until one opens, then locks on', () => {
+  it('always uses web.EventsPath', () => {
     const h = harness();
     h.socket.start();
     (FakeSocket.instances[0] as FakeSocket).drop();
     h.run();
-    (FakeSocket.instances[1] as FakeSocket).drop();
-    h.run();
-    const urls = FakeSocket.instances.map((s) => new URL(s.url).pathname);
-    assert.deepEqual(urls, ['/api/events', '/api/ws', '/ws']);
-
-    const third = FakeSocket.instances[2] as FakeSocket;
-    third.open();
-    third.drop();
-    h.run();
-    assert.equal(new URL((FakeSocket.instances[3] as FakeSocket).url).pathname, '/ws');
+    const paths = FakeSocket.instances.map((s) => new URL(s.url).pathname);
+    assert.deepEqual(paths, ['/api/events', '/api/events']);
   });
 
   it('surfaces offline after repeated failures', () => {
@@ -161,14 +213,16 @@ describe('EventSocket', () => {
     assert.equal(h.states.some(([s]) => s === 'offline'), true);
   });
 
-  it('sends only while open, and reports failure otherwise', () => {
+  it('sends the client envelope only while open, and reports failure otherwise', () => {
     const h = harness();
     h.socket.start();
-    assert.equal(h.socket.send({ type: 'interrupt' }), false);
+    assert.equal(h.socket.send('cancel', {}), false);
     const s = FakeSocket.instances[0] as FakeSocket;
     s.open();
-    assert.equal(h.socket.send({ type: 'interrupt', session_id: 's1' }), true);
-    assert.deepEqual(JSON.parse(s.sent[0] as string), { type: 'interrupt', session_id: 's1' });
+    assert.equal(h.socket.send('cancel', { session_id: 's1' }), true);
+    assert.deepEqual(JSON.parse(s.sent[0] as string), { type: 'cancel', id: 'c1', data: { session_id: 's1' } });
+    h.socket.send('ping');
+    assert.deepEqual(JSON.parse(s.sent[1] as string), { type: 'ping', id: 'c2' });
   });
 
   it('stop() prevents any further reconnection', () => {

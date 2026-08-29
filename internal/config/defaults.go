@@ -192,6 +192,12 @@ func DefaultPermissions() PermissionsConfig {
 	p.Git.Commit = permissions.RuleConfirm
 	p.Git.Push = permissions.RuleConfirm
 	p.Network.HTTP = permissions.RuleConfirm
+	// Fetching a URL confirms by default. Searching only discloses the query
+	// text to the configured engine and returns no local side effect, so it
+	// is allowed once the user has already opted into outbound access at all
+	// via network.enabled.
+	p.Network.Fetch = permissions.RuleConfirm
+	p.Network.Search = permissions.RuleAllow
 	p.Production.Change = permissions.RuleConfirm
 	return p
 }
@@ -203,8 +209,9 @@ func DefaultPermissions() PermissionsConfig {
 // category names live in exactly one place: internal/permissions.
 func (c *Config) Policy() permissions.Policy {
 	return permissions.Policy{
-		Mode:  c.Execution.Mode,
-		Rules: c.Permissions.Rules(),
+		Mode:         c.Execution.Mode,
+		Rules:        c.Permissions.Rules(),
+		Unrestricted: c.Execution.Unrestricted,
 	}
 }
 
@@ -219,6 +226,8 @@ func (p PermissionsConfig) Rules() map[permissions.Category]permissions.Rule {
 		permissions.CatGitCommit:        p.Git.Commit,
 		permissions.CatGitPush:          p.Git.Push,
 		permissions.CatNetworkHTTP:      p.Network.HTTP,
+		permissions.CatNetworkFetch:     p.Network.Fetch,
+		permissions.CatNetworkSearch:    p.Network.Search,
 		permissions.CatProductionChange: p.Production.Change,
 	}
 }

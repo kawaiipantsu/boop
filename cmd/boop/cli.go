@@ -211,5 +211,9 @@ func loadConfig(opts options) (*config.Config, error) {
 	if opts.logLevel != "" {
 		cfg.Logging.Level = opts.logLevel
 	}
+	// The flag was previously parsed and then dropped on the floor, so it
+	// silently did nothing. It skips confirmation for ordinary categories;
+	// the production gate still holds above it (§15, §64.14).
+	cfg.Execution.Unrestricted = opts.dangerouslyUnrestricted
 	return cfg, nil
 }

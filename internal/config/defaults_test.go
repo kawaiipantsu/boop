@@ -115,14 +115,26 @@ func TestPolicyProjection(t *testing.T) {
 		permissions.CatGitCommit:        permissions.RuleConfirm,
 		permissions.CatGitPush:          permissions.RuleConfirm,
 		permissions.CatNetworkHTTP:      permissions.RuleConfirm,
+		permissions.CatNetworkFetch:     permissions.RuleConfirm,
+		permissions.CatNetworkSearch:    permissions.RuleAllow,
 		permissions.CatProductionChange: permissions.RuleConfirm,
-	}
-	if len(p.Rules) != len(want) {
-		t.Fatalf("rule count = %d, want %d", len(p.Rules), len(want))
 	}
 	for cat, rule := range want {
 		if p.Rules[cat] != rule {
 			t.Errorf("rule %s = %q, want %q", cat, p.Rules[cat], rule)
+		}
+	}
+	// Derive the expected set rather than asserting a count. A hardcoded
+	// number fails on every legitimate new category without saying which one
+	// is missing, which is noise rather than a signal.
+	for cat := range permissions.DefaultRules() {
+		if _, ok := p.Rules[cat]; !ok {
+			t.Errorf("category %s is missing from the projected policy", cat)
+		}
+	}
+	for cat := range p.Rules {
+		if _, ok := want[cat]; !ok {
+			t.Errorf("category %s is projected but has no expectation here; add one", cat)
 		}
 	}
 }

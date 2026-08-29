@@ -42,6 +42,13 @@ func bundleFS() (fs.FS, bool) {
 
 // newStaticHandler serves the embedded WebUI.
 //
+// Static assets are served without authentication even when a token is
+// required. They are a public JavaScript bundle with no user data in them, and
+// a browser cannot attach an Authorization header to the initial document
+// load, so gating them would make token auth unusable from a browser without
+// buying anything: every /api route, including the WebSocket, still requires
+// the token, and the shell renders nothing until one is supplied.
+//
 // With a bundle present it behaves as a single-page-application host: known
 // files are served directly and every other path falls back to index.html so
 // client-side routes survive a reload. Without one it serves a page that

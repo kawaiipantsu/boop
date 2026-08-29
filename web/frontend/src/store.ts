@@ -10,8 +10,9 @@
 
 import type { ConnectionState } from './socket.js';
 import {
-  durationMs, isRecord, num, parseAgent, parseApproval, str,
-  type AgentView, type Approval, type BoopEvent, type StatusView,
+  approvalFingerprint, durationMs, isRecord, num, parseAgent, parseApproval, str,
+  type AgentView, type Approval, type ApprovalEvent, type BoopEvent,
+  type HelloData, type StatusView,
 } from './protocol.js';
 
 export interface AppState {
@@ -111,9 +112,54 @@ export class Store {
     this.patch({ approvals: this.state.approvals.filter((a) => a.id !== id) });
   }
 
+  /**
+   * Adds an approval, or upgrades the synthetic placeholder for the same
+   * action to the real, resolvable one.
+   *
+   * The core emits `approval.requested` on the bus carrying a bare
+   * permissions.Action (no id), and separately broadcasts an `approval` frame
+   * carrying the full PendingApproval. Both describe one decision, and only
+   * the second can be answered — so they must not become two dialogs.
+   */
   addApproval(approval: Approval): void {
-    if (this.state.approvals.some((a) => a.id === approval.id)) return;
-    this.patch({ approvals: [...this.state.approvals, approval] });
+    const existing = this.state.approvals;
+    if (existing.some((a) => a.id === approval.id)) return;
+
+    const print = approvalFingerprint(approval);
+    const twinIndex = existing.findIndex((a) => approvalFingerprint(a) === print);
+    if (twinIndex === -1) {
+      this.patch({ approvals: [...existing, approval] });
+      return;
+    }
+    const twin = existing[twinIndex] as Approval;
+    if (twin.synthetic && !approval.synthetic) {
+      const approvals = [...existing];
+      approvals[twinIndex] = approval;
+      this.patch({ approvals });
+    }
+    // Otherwise the one we already have is at least as good; keep it.
+  }
+
+  /** Applies the connect-time snapshot, which is authoritative. */
+  applyHello(hello: HelloData): void {
+    const status = { ...this.state.status };
+    if (hello.sessionId) status.sessionId = hello.sessionId;
+    if (hello.mode) status.mode = hello.mode;
+    // The server's pending queue replaces ours wholesale: after a reconnect,
+    // anything we still hold that the server does not is already answered.
+    this.patch({ status, approvals: hello.pendingApprovals });
+  }
+
+  /** Applies one permissions.ApprovalEvent from the socket (§50). */
+  applyApprovalEvent(ev: ApprovalEvent): void {
+    if (!ev.approval) return;
+    if (ev.kind === 'added') this.addApproval(ev.approval);
+    else this.clearApproval(ev.approval.id);
+  }
+
+  /** Replaces the queue from GET /api/approval after a resync. */
+  setApprovals(approvals: Approval[]): void {
+    this.patch({ approvals });
   }
 
   private upsertAgent(partial: AgentView): void {

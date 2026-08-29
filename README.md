@@ -346,7 +346,7 @@ Boop/0.1.0-dev (+https://github.com/kawaiipantsu/boop)
 |:--|:--|:--|
 | 🐧 Linux | `~/.config/boop/config.yaml` | `~/.local/share/boop/` |
 | 🍎 macOS | `~/Library/Application Support/boop/` | same |
-| 🪟 Windows | `%AppData%\boop\` | `%LocalAppData%\boop\` |
+| 🪟 Windows | `%AppData%\boop\` | `%AppData%\boop\` (cache and logs in `%LocalAppData%`) |
 
 </div>
 

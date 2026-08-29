@@ -43,6 +43,10 @@ const (
 	pongTimeout  = 10 * time.Second
 	// readLimit bounds a single client message.
 	readLimit = 1 << 20
+	// closeGrace bounds the closing handshake per connection during shutdown.
+	// A peer that is reading answers in microseconds; one that is not should
+	// not be able to hold the process open while the user waits at a prompt.
+	closeGrace = 2 * time.Second
 )
 
 // Server-to-client message types.
@@ -228,13 +232,18 @@ func (h *hub) shutdown(ctx context.Context) {
 	for _, c := range clients {
 		c.stop(websocket.StatusGoingAway, "boop is shutting down")
 	}
+	waitCtx, cancel := context.WithTimeout(ctx, closeGrace)
+	defer cancel()
 	for _, c := range clients {
 		select {
 		case <-c.finished:
-		case <-ctx.Done():
-			// The grace period expired; drop the connection hard rather than
-			// blocking shutdown on a peer that will not read.
-			c.hardClose()
+		case <-waitCtx.Done():
+			// The grace period expired. The close frame has already been
+			// written; what is outstanding is the peer's reply, and the
+			// library serialises CloseNow behind that same handshake — so
+			// dropping the connection happens off this goroutine. Shutdown
+			// must not wait on a client that has stopped reading.
+			go c.hardClose()
 		}
 	}
 }

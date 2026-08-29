@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/kawaiipantsu/boop/internal/app"
 	"github.com/kawaiipantsu/boop/internal/config"
 	"github.com/kawaiipantsu/boop/internal/permissions"
@@ -724,6 +726,9 @@ func (s *Server) createAgent(w http.ResponseWriter, r *http.Request) {
 
 	now := s.now().UTC()
 	rec := &session.AgentRecord{
+		// The store requires an ID up front rather than assigning one, so the
+		// event published below can reference the agent that was just saved.
+		ID:        uuid.NewString(),
 		SessionID: sessionID,
 		ParentID:  req.ParentID,
 		Name:      strings.TrimSpace(req.Name),

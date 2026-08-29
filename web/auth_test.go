@@ -65,10 +65,7 @@ func TestRefusesInsecureBind(t *testing.T) {
 			name: "lan address without auth is refused", listen: "192.168.1.10",
 			wantErr: true, wantErrIs: ErrInsecureBind,
 		},
-		{
-			name: "empty listen is treated as public and refused", listen: "",
-			wantErr: true, wantErrIs: ErrInsecureBind,
-		},
+		{name: "an empty listen falls back to the loopback default", listen: ""},
 		{
 			name:   "all interfaces with auth is allowed",
 			listen: "0.0.0.0",

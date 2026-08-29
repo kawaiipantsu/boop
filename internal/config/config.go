@@ -36,6 +36,11 @@ type ExecutionConfig struct {
 	CommandTimeout       Duration         `yaml:"command_timeout" json:"command_timeout"`
 	MaxRetriesPerCommand int              `yaml:"max_retries_per_command" json:"max_retries_per_command"`
 	MaxToolIterations    int              `yaml:"max_tool_iterations" json:"max_tool_iterations"`
+	// Unrestricted skips confirmation entirely. It is deliberately not a
+	// YAML key: this is a per-invocation decision made with an explicitly
+	// named flag, not something that should sit in a config file where it
+	// would be forgotten (§14). It never bypasses the production gate.
+	Unrestricted bool `yaml:"-" json:"unrestricted,omitempty"`
 }
 
 // AgentsConfig bounds the agent scheduler.
@@ -94,6 +99,12 @@ type PermissionsConfig struct {
 	} `yaml:"git" json:"git"`
 	Network struct {
 		HTTP permissions.Rule `yaml:"http" json:"http"`
+		// Fetch covers retrieving an arbitrary external URL, and Search
+		// covers a web search, which discloses the query to a third party.
+		// They are separate so searching can be allowed while an arbitrary
+		// fetch still confirms.
+		Fetch  permissions.Rule `yaml:"fetch" json:"fetch"`
+		Search permissions.Rule `yaml:"search" json:"search"`
 	} `yaml:"network" json:"network"`
 	Production struct {
 		Change permissions.Rule `yaml:"change" json:"change"`

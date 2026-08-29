@@ -11,6 +11,7 @@ function approval(over: Partial<Approval['action']> & { id?: string; reason?: st
     id: id ?? 'a1',
     reason: reason ?? 'shell.execute requires confirmation in confirm mode',
     requestedAt: '2026-01-01T10:00:00Z',
+    synthetic: false,
     action: {
       category: 'shell.execute',
       risk: 'low',

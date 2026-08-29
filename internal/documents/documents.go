@@ -15,12 +15,17 @@
 //     the whole job. Legacy .doc/.xls/.ppt (OLE compound files) are not
 //     supported and say so.
 //
-//   - PDF extraction reads the text layer of unencrypted PDF 1.0–1.7 with
-//     FlateDecode or ASCII85 content streams, mapping characters through
-//     /ToUnicode CMaps and the built-in encodings. It does not OCR, does not
-//     rasterise pages, and cannot read password-protected files, LZW-filtered
-//     streams, or subset fonts with no /ToUnicode map. Each of those returns a
-//     specific error naming the reason — never empty text.
+//   - PDF extraction (github.com/ledongthuc/pdf, pure Go) reads the text
+//     layer of unencrypted PDF 1.0–1.7 with FlateDecode or ASCII85 content
+//     streams, mapping characters through /ToUnicode CMaps and the built-in
+//     encodings. It does not OCR, does not rasterise pages, and cannot read
+//     password-protected files, headers newer than 1.7, files missing a
+//     trailing %%EOF, LZW-filtered streams, or subset fonts with no /ToUnicode
+//     map. Each of those returns a specific error naming the reason — never
+//     empty text. Layout is approximate: text arrives in content-stream order,
+//     so multi-column pages interleave. The reader panics rather than
+//     erroring on some malformed files, so every call into it is wrapped in a
+//     recover; a corrupt attachment yields an error, never a dead process.
 //
 //   - Images are validated by decoding their header, never their pixels, and
 //     require provider.CapabilityVision. PNG, JPEG and GIF go through the
@@ -296,7 +301,7 @@ func (d *Document) loadPDF(data []byte, opts Options) error {
 	d.PDF = res
 	if res != nil {
 		d.Text, d.Truncated = res.Text, res.Truncated
-		d.Lines = strings.Count(res.Text, "\n") + 1
+		d.Lines = lineCount(res.Text)
 		d.Diagnostics = append(d.Diagnostics, res.Diagnostics...)
 	}
 	if err != nil {
@@ -312,7 +317,7 @@ func (d *Document) loadOffice(data []byte, opts Options) error {
 	d.Office = res
 	if res != nil {
 		d.Text, d.Truncated = res.Text, res.Truncated
-		d.Lines = strings.Count(res.Text, "\n") + 1
+		d.Lines = lineCount(res.Text)
 		d.Images = res.Images
 		d.Diagnostics = append(d.Diagnostics, res.Diagnostics...)
 	}
@@ -464,6 +469,15 @@ func (d *Document) Summary() string {
 		sb.WriteString(", truncated")
 	}
 	return sb.String()
+}
+
+// lineCount counts lines in extracted text, reporting zero for no content
+// rather than the one line a naive newline count would claim.
+func lineCount(s string) int {
+	if strings.TrimSpace(s) == "" {
+		return 0
+	}
+	return strings.Count(s, "\n") + 1
 }
 
 // humanBytes renders a byte count for user-facing messages.

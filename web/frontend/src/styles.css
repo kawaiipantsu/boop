@@ -70,6 +70,13 @@
 
 * { box-sizing: border-box; }
 
+/* The `hidden` attribute is how every view in this UI is shown and hidden.
+ * The UA rule behind it is only `[hidden] { display: none }`, so any author
+ * `display` declaration on the same element silently defeats it — which is
+ * exactly what `.panel { display: block }` and `.transcript-empty
+ * { display: flex }` would do. Make the guard explicit and unbeatable. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   height: 100%;

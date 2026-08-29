@@ -2,7 +2,8 @@
 // Settings. Each one is a thin read/refresh view over a single endpoint.
 
 import { el, replaceChildren } from '../util/dom.js';
-import { formatDateTime, formatNumber } from '../util/format.js';
+import { formatDateTime, formatNumber, truncate } from '../util/format.js';
+import { isRecord, str } from '../protocol.js';
 import type { ModelView, ProviderView, SessionView } from '../protocol.js';
 
 function panelShell(
@@ -184,6 +185,8 @@ export class SettingsPanel {
   private readonly editor: HTMLTextAreaElement;
   private readonly status: HTMLElement;
 
+  private meta = el('div', { class: 'settings-meta' });
+
   constructor(
     reload: () => void | Promise<void>,
     private readonly save: (config: unknown) => Promise<void>,
@@ -201,6 +204,7 @@ export class SettingsPanel {
         text:
           'Configuration as the server reports it. Secrets are referenced by environment variable name, never by value — if you see a key here, that is a server bug.',
       }),
+      this.meta,
       this.editor,
       el(
         'div',
@@ -216,9 +220,48 @@ export class SettingsPanel {
     ]);
   }
 
-  render(config: unknown): void {
+  /**
+   * Takes the whole GET /api/config body. The editable document is the nested
+   * `config` object — PUT rejects the envelope's other fields.
+   */
+  render(body: unknown): void {
+    const envelope = isRecord(body) ? body : {};
+    const config = envelope['config'] !== undefined ? envelope['config'] : envelope;
     this.editor.value = JSON.stringify(config ?? {}, null, 2);
     this.status.textContent = '';
+
+    const notes: HTMLElement[] = [];
+    const path = str(envelope['path']);
+    if (path !== '') notes.push(el('p', { class: 'muted', text: `Loaded from ${path}` }));
+
+    const secrets = envelope['secrets'];
+    if (Array.isArray(secrets) && secrets.length > 0) {
+      const chips = secrets.flatMap((ref) => {
+        if (!isRecord(ref)) return [];
+        const env = str(ref['env']);
+        if (env === '') return [];
+        const set = ref['set'] === true;
+        return [
+          el('span', {
+            class: `chip ${set ? 'chip-ok' : 'chip-error'}`,
+            text: `${env}: ${set ? 'set' : 'not set'}`,
+          }),
+        ];
+      });
+      notes.push(el('p', { class: 'muted' }, 'Secrets referenced by this config: ', ...chips));
+    }
+
+    const warnings = envelope['warnings'];
+    if (Array.isArray(warnings)) {
+      for (const w of warnings) {
+        const text = str(w);
+        if (text !== '') notes.push(el('p', { class: 'notice notice-error', text }));
+      }
+    }
+    if (envelope['restart_required'] === true) {
+      notes.push(el('p', { class: 'notice notice-approval', text: 'A restart is required for the saved changes to take effect.' }));
+    }
+    replaceChildren(this.meta, notes);
   }
 
   setError(message: string): void {
@@ -240,5 +283,56 @@ export class SettingsPanel {
     } catch (err) {
       this.status.textContent = `Save failed: ${err instanceof Error ? err.message : String(err)}`;
     }
+  }
+}
+
+/** Tools view (§26): the registered tool set and the execution mode. */
+export class ToolsPanel {
+  readonly root: HTMLElement;
+  private readonly body = el('div', { class: 'panel-body' });
+
+  constructor(reload: () => void | Promise<void>) {
+    this.root = panelShell('Tools', this.body, reload);
+    replaceChildren(this.body, [el('p', { class: 'muted', text: 'Loading…' })]);
+  }
+
+  render(raw: unknown): void {
+    const envelope = isRecord(raw) ? raw : {};
+    const list = Array.isArray(envelope['tools']) ? envelope['tools'] : Array.isArray(raw) ? raw : [];
+    const mode = str(envelope['mode']);
+
+    const rows = list.flatMap((t) => {
+      if (!isRecord(t)) return [];
+      const name = str(t['name']);
+      if (name === '') return [];
+      return [
+        el(
+          'tr',
+          {},
+          el('td', {}, el('code', { text: name })),
+          el('td', { text: truncate(str(t['description']), 220) }),
+        ),
+      ];
+    });
+
+    if (rows.length === 0) {
+      replaceChildren(this.body, [el('p', { class: 'muted', text: 'No tools are registered.' })]);
+      return;
+    }
+    replaceChildren(this.body, [
+      mode !== ''
+        ? el('p', { class: 'muted' }, 'Execution mode: ', el('span', { class: 'chip', text: mode }))
+        : null,
+      el(
+        'table',
+        { class: 'table' },
+        el('thead', {}, el('tr', {}, el('th', { text: 'Tool' }), el('th', { text: 'Description' }))),
+        el('tbody', {}, ...rows),
+      ),
+    ]);
+  }
+
+  setError(message: string): void {
+    replaceChildren(this.body, [el('p', { class: 'notice notice-error', text: message })]);
   }
 }

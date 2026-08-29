@@ -3,6 +3,9 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"io/fs"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +19,11 @@ import (
 	"github.com/kawaiipantsu/boop/internal/config"
 	"github.com/kawaiipantsu/boop/internal/permissions"
 )
+
+// discardLogger returns a logger that writes nowhere, so a test that
+// deliberately triggers the exposure warnings does not spray them over the
+// test output.
+func discardLogger() *log.Logger { return log.New(io.Discard, "", 0) }
 
 // shutdownServer stops a server with a fresh context. It deliberately does not
 // use t.Context(), which is already cancelled by the time cleanups run and
@@ -275,4 +283,52 @@ func waitForServer(t *testing.T, url string) {
 // wsURL converts an http base URL to its ws equivalent.
 func wsURL(base string) string {
 	return "ws" + strings.TrimPrefix(base, "http") + EventsPath
+}
+
+// TestStaticBundleRouting covers the single-page-application behaviour, but
+// only when a bundle was actually embedded: a clean checkout has none, and the
+// placeholder path is covered above.
+func TestStaticBundleRouting(t *testing.T) {
+	assets, bundled := bundleFS()
+	if !bundled {
+		t.Skip("no WebUI bundle is embedded; run make web-build")
+	}
+	srv := newTestServer(t, nil)
+
+	// An unknown path falls back to index.html so a client-side route survives
+	// a page reload.
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/agents/42", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("SPA fallback = %d, want 200", rec.Code)
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("index Cache-Control = %q, want no-cache", got)
+	}
+
+	// Hashed assets are immutable and may be cached indefinitely.
+	if _, err := fs.Stat(assets, "assets"); err == nil {
+		entries, err := fs.ReadDir(assets, "assets")
+		if err != nil || len(entries) == 0 {
+			t.Skip("no asset files to check")
+		}
+		rec = httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/assets/"+entries[0].Name(), nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("asset = %d, want 200", rec.Code)
+		}
+		if got := rec.Header().Get("Cache-Control"); !strings.Contains(got, "immutable") {
+			t.Errorf("asset Cache-Control = %q, want an immutable directive", got)
+		}
+	}
+
+	// /api paths never reach the static handler.
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/unknown", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("GET /api/unknown = %d, want 404", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "json") {
+		t.Errorf("Content-Type = %q, want JSON", ct)
+	}
 }

@@ -64,6 +64,19 @@ export interface Approval {
   /** Evaluator reason, shown next to the action (permissions.Decision.Reason). */
   reason: string;
   requestedAt: string;
+  /**
+   * True when the payload carried no id and we invented one. The core emits
+   * both a bare-Action `approval.requested` bus event and an id-carrying
+   * `approval` frame for the same request, so this is what lets the store
+   * recognise the pair and keep the resolvable one.
+   */
+  synthetic: boolean;
+}
+
+/** Identity of the underlying action, used to pair the two representations. */
+export function approvalFingerprint(a: Approval): string {
+  const { category, tool, detail, summary } = a.action;
+  return [category, tool, detail, summary].join('\u0000');
 }
 
 export interface ToolCallView {
@@ -255,12 +268,13 @@ export function parseApproval(raw: unknown, fallbackId: () => string): Approval 
   }
   const decision = pick(raw, 'decision', 'Decision');
   const reason = isRecord(decision) ? str(pick(decision, 'reason', 'Reason')) : str(pick(raw, 'reason'));
-  const id = str(pick(raw, 'id', 'ID', 'approval_id')) || fallbackId();
+  const given = str(pick(raw, 'id', 'ID', 'approval_id'));
   return {
-    id,
+    id: given || fallbackId(),
     action,
     reason,
     requestedAt: str(pick(raw, 'requested_at', 'RequestedAt', 'at')),
+    synthetic: given === '',
   };
 }
 
@@ -271,6 +285,11 @@ export function parseAgent(raw: unknown): AgentView | null {
   if (id === '' && name === '') return null;
   const tokensRaw = pick(raw, 'tokens', 'token_use', 'total_tokens');
   const tokens = isRecord(tokensRaw) ? num(pick(tokensRaw, 'total_tokens', 'total')) : num(tokensRaw);
+  let runtimeMs = durationMs(pick(raw, 'runtime_ms', 'runtime', 'elapsed_ms', 'duration'));
+  if (runtimeMs === null) {
+    // store.AgentRecord reports timestamps rather than a duration.
+    runtimeMs = spanMs(str(pick(raw, 'started_at')), str(pick(raw, 'finished_at')));
+  }
   return {
     id: id || name,
     name,
@@ -281,9 +300,18 @@ export function parseAgent(raw: unknown): AgentView | null {
     tools: strList(pick(raw, 'tools', 'allowed_tools', 'Tools')),
     files: strList(pick(raw, 'files', 'modified_files', 'Files')),
     tokens,
-    runtimeMs: durationMs(pick(raw, 'runtime_ms', 'runtime', 'elapsed_ms', 'duration')),
-    output: str(pick(raw, 'output', 'recent_output', 'Output')),
+    runtimeMs,
+    output: str(pick(raw, 'output', 'recent_output', 'Output'), str(pick(raw, 'error'))),
   };
+}
+
+/** Milliseconds between two RFC3339 stamps; `to` defaults to now. */
+export function spanMs(from: string, to: string, now = Date.now()): number | null {
+  if (from === '') return null;
+  const start = Date.parse(from);
+  if (Number.isNaN(start)) return null;
+  const end = to === '' ? now : Date.parse(to);
+  return Number.isNaN(end) ? null : Math.max(0, end - start);
 }
 
 export function parseAgentList(raw: unknown): AgentView[] {
@@ -314,7 +342,7 @@ export function parseStatus(raw: unknown): StatusView {
     provider: str(pick(r, 'provider')),
     model: str(pick(r, 'model')),
     mode: str(pick(r, 'mode', 'execution_mode')),
-    sessionId: str(pick(r, 'session_id', 'session')),
+    sessionId: str(pick(r, 'current_session', 'session_id', 'session')),
     projectPath,
     agents,
     tokens: {
@@ -405,4 +433,117 @@ export function errorText(payload: unknown): string {
     if (typeof v === 'string' && v !== '') return v;
   }
   return 'An unspecified error occurred.';
+}
+
+// ---------------------------------------------------------------------------
+// WebSocket envelope (web/websocket.go)
+// ---------------------------------------------------------------------------
+
+/** Envelope version this client understands (web.ProtocolVersion). */
+export const PROTOCOL_VERSION = 1;
+
+export interface HelloData {
+  protocol: number;
+  sessionId: string;
+  mode: string;
+  pendingApprovals: Approval[];
+}
+
+export type ApprovalEventKind = 'added' | 'resolved' | 'cancelled';
+
+export interface ApprovalEvent {
+  kind: ApprovalEventKind;
+  approval: Approval | null;
+  approved: boolean;
+  scope: string;
+}
+
+export type ServerMessage =
+  | { kind: 'hello'; hello: HelloData }
+  | { kind: 'event'; event: BoopEvent }
+  | { kind: 'approval'; approval: ApprovalEvent }
+  | { kind: 'ack'; id: string; data: unknown }
+  | { kind: 'error'; id: string; code: string; message: string }
+  | { kind: 'pong'; id: string }
+  | { kind: 'dropped'; count: number };
+
+let syntheticApprovalID = 0;
+function nextSyntheticID(): string {
+  syntheticApprovalID += 1;
+  return `pending-${syntheticApprovalID}`;
+}
+
+export function parseHello(raw: unknown): HelloData {
+  const r = isRecord(raw) ? raw : {};
+  const pending = r['pending_approvals'];
+  return {
+    protocol: num(r['protocol'], PROTOCOL_VERSION),
+    sessionId: str(r['session_id']),
+    mode: str(r['mode']),
+    pendingApprovals: Array.isArray(pending)
+      ? pending.map((p) => parseApproval(p, nextSyntheticID)).filter((a): a is Approval => a !== null)
+      : [],
+  };
+}
+
+export function parseApprovalEvent(raw: unknown): ApprovalEvent | null {
+  if (!isRecord(raw)) return null;
+  const kind = str(raw['kind']);
+  if (kind !== 'added' && kind !== 'resolved' && kind !== 'cancelled') return null;
+  return {
+    kind,
+    approval: parseApproval(raw['approval'], nextSyntheticID),
+    approved: bool(raw['approved']),
+    scope: str(raw['scope']),
+  };
+}
+
+/**
+ * Decodes one frame of the server's WebSocket envelope. Frames we do not
+ * recognise return null rather than throwing: a newer server adding a message
+ * type must not break an older page.
+ */
+export function parseServerMessage(raw: unknown): ServerMessage | null {
+  if (typeof raw === 'string') {
+    try {
+      return parseServerMessage(JSON.parse(raw) as unknown);
+    } catch {
+      return null;
+    }
+  }
+  if (!isRecord(raw)) return null;
+  const id = str(raw['id']);
+  switch (str(raw['type'])) {
+    case 'hello':
+      return { kind: 'hello', hello: parseHello(raw['data']) };
+    case 'event': {
+      const event = parseEvent(raw['event']);
+      return event ? { kind: 'event', event } : null;
+    }
+    case 'approval': {
+      const approval = parseApprovalEvent(raw['data']);
+      return approval ? { kind: 'approval', approval } : null;
+    }
+    case 'ack':
+      return { kind: 'ack', id, data: raw['data'] };
+    case 'error': {
+      const err = isRecord(raw['error']) ? raw['error'] : {};
+      return { kind: 'error', id, code: str(err['code']), message: str(err['message'], 'the server rejected the request') };
+    }
+    case 'pong':
+      return { kind: 'pong', id };
+    case 'dropped': {
+      const data = isRecord(raw['data']) ? raw['data'] : {};
+      return { kind: 'dropped', count: num(data['count']) };
+    }
+    default:
+      return null;
+  }
+}
+
+/** Reads the `{pending, grants, mode}` body of GET /api/approval. */
+export function parsePendingApprovals(raw: unknown): Approval[] {
+  const list = Array.isArray(raw) ? raw : isRecord(raw) ? raw['pending'] : null;
+  if (!Array.isArray(list)) return [];
+  return list.map((p) => parseApproval(p, nextSyntheticID)).filter((a): a is Approval => a !== null);
 }

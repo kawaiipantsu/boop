@@ -6,13 +6,13 @@ import './styles.css';
 import { api, ApiError } from './api.js';
 import { EventSocket, type ConnectionState } from './socket.js';
 import { Store } from './store.js';
-import type { BoopEvent, GrantScope } from './protocol.js';
+import type { ApprovalEvent, BoopEvent, GrantScope, HelloData } from './protocol.js';
 import { el } from './util/dom.js';
 import { ApprovalPanel } from './ui/approvals.js';
 import { AgentsPanel } from './ui/agents.js';
 import { Composer } from './ui/composer.js';
 import { Header } from './ui/header.js';
-import { ModelsPanel, SessionsPanel, SettingsPanel } from './ui/panels.js';
+import { ModelsPanel, SessionsPanel, SettingsPanel, ToolsPanel } from './ui/panels.js';
 import { Shell, type View } from './ui/shell.js';
 import { StatsPanel } from './ui/stats.js';
 import { Transcript } from './ui/transcript.js';
@@ -32,18 +32,35 @@ export function mount(root: HTMLElement): () => void {
       transcript.handle(ev);
     },
     onState: (state: ConnectionState, detail) => store.setConnection(state, detail.nextRetryMs),
+    onHello: (hello: HelloData) => store.applyHello(hello),
+    onApproval: (ev: ApprovalEvent) => store.applyApprovalEvent(ev),
+    onServerError: (text: string) => {
+      store.setError(text);
+      transcript.addNotice(text, 'error');
+    },
+    onDropped: (count: number) => {
+      transcript.addNotice(
+        `This page fell behind and the server dropped ${count} update(s). Resyncing.`,
+        'error',
+      );
+      void resync();
+    },
     onOpen: () => {
-      // The socket may have been down while things happened. Re-read the
-      // authoritative REST state rather than guessing what we missed.
-      void refreshStatus();
-      void refreshAgents();
+      // The socket may have been down while things happened. `hello` carries
+      // the session and approval queue; the rest comes back over REST.
+      void resync();
     },
   });
 
   const approvals = new ApprovalPanel({
     resolve: async (id: string, approved: boolean, scope: GrantScope) => {
-      // Optimistically clear: the core also broadcasts approval.received, and
-      // clearing twice is harmless, but leaving a resolved dialog up is not.
+      // The socket carries approvals when it is up — that is the whole reason
+      // §24 chose a WebSocket. The server broadcasts the resolution back, but
+      // we clear locally too so the dialog never lingers on a slow round trip.
+      if (socket.send('approval', { id, approved, scope })) {
+        store.clearApproval(id);
+        return;
+      }
       try {
         await api.resolveApproval(id, approved, scope);
         store.clearApproval(id);
@@ -58,7 +75,8 @@ export function mount(root: HTMLElement): () => void {
 
   async function interrupt(): Promise<void> {
     const sessionId = store.get().status.sessionId;
-    const sent = socket.send({ type: 'interrupt', session_id: sessionId });
+    // web.ClientCancel is the real mechanism; REST is only for a dead socket.
+    const sent = socket.send('cancel', sessionId ? { session_id: sessionId } : {});
     if (!sent) {
       try {
         await api.interrupt(sessionId || undefined);
@@ -86,8 +104,14 @@ export function mount(root: HTMLElement): () => void {
     submit: async (text: string) => {
       transcript.addUserTurn(text);
       store.setBusy(true);
+      const sessionId = store.get().status.sessionId;
+      // Over the socket a turn is always asynchronous, which is what we want:
+      // the answer is the event stream, not an HTTP response body.
+      const data: Record<string, unknown> = { content: text };
+      if (sessionId) data['session_id'] = sessionId;
+      if (socket.send('message', data)) return;
       try {
-        const result = await api.sendMessage(text, store.get().status.sessionId || undefined);
+        const result = await api.sendMessage(text, sessionId || undefined);
         if (result.sessionId) store.setStatus({ ...store.get().status, sessionId: result.sessionId });
       } catch (err) {
         store.setBusy(false);
@@ -100,6 +124,7 @@ export function mount(root: HTMLElement): () => void {
   });
 
   const agentsPanel = new AgentsPanel();
+  const toolsPanel = new ToolsPanel(() => refreshTools());
   const statsPanel = new StatsPanel(() => refreshStats());
   const modelsPanel = new ModelsPanel(() => refreshModels());
   const sessionsPanel = new SessionsPanel(
@@ -124,6 +149,7 @@ export function mount(root: HTMLElement): () => void {
   const views: View[] = [
     { id: 'chat', label: 'Chat', node: chat, onShow: () => composer.focus() },
     { id: 'agents', label: 'Agents', node: agentsPanel.root, onShow: () => void refreshAgents() },
+    { id: 'tools', label: 'Tools', node: toolsPanel.root, onShow: () => void refreshTools() },
     { id: 'models', label: 'Models', node: modelsPanel.root, onShow: () => void refreshModels() },
     { id: 'sessions', label: 'Sessions', node: sessionsPanel.root, onShow: () => void refreshSessions() },
     { id: 'stats', label: 'Statistics', node: statsPanel.root, onShow: () => void refreshStats() },
@@ -146,6 +172,24 @@ export function mount(root: HTMLElement): () => void {
     } catch (err) {
       store.setError(message(err));
     }
+  }
+  async function refreshApprovals(): Promise<void> {
+    try {
+      store.setApprovals(await api.approvals());
+    } catch {
+      /* the hello frame is the primary source; this is only a backstop */
+    }
+  }
+  async function refreshTools(): Promise<void> {
+    try {
+      toolsPanel.render(await api.tools());
+    } catch (err) {
+      toolsPanel.setError(message(err));
+    }
+  }
+  /** Re-reads everything the socket cannot replay. */
+  async function resync(): Promise<void> {
+    await Promise.all([refreshStatus(), refreshAgents(), refreshApprovals()]);
   }
   async function refreshAgents(): Promise<void> {
     try {
@@ -202,8 +246,7 @@ export function mount(root: HTMLElement): () => void {
   document.addEventListener('keydown', onKeyDown);
 
   socket.start();
-  void refreshStatus();
-  void refreshAgents();
+  void resync();
 
   return () => {
     window.removeEventListener('online', onOnline);

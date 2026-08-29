@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -600,7 +599,3 @@ func splitListenAddr(addr string) (string, int) {
 	}
 	return host, port
 }
-
-// discardLogger returns a logger that writes nowhere, for callers that want a
-// silent server.
-func discardLogger() *log.Logger { return log.New(io.Discard, "", 0) }
