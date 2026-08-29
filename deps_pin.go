@@ -16,4 +16,8 @@ import (
 
 	// Milestone 9, the WebUI event stream.
 	_ "github.com/coder/websocket"
+
+	// Milestone 11, PDF text extraction. Pure Go, so the six cross-compile
+	// targets keep working without CGO.
+	_ "github.com/ledongthuc/pdf"
 )
