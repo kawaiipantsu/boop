@@ -188,10 +188,11 @@ func (s *Server) handleProjectSub(w http.ResponseWriter, r *http.Request) {
 // runPrep executes the §17 preparation sequence.
 //
 // Prep writes Boop.md — and only Boop.md, only the blocks it owns — so it is a
-// POST. The in-process App.Memory is deliberately not swapped underneath the
-// runtime: it is read without synchronisation from the tool loop, and a
-// pointer replaced mid-turn is a data race. The response therefore reports the
-// file that was just written, read back from disk.
+// POST. After it writes, App.ReloadMemory swaps the freshly written file into
+// the running runtime (the swap is atomic, so an in-flight turn keeps its own
+// snapshot and the next turn sees the new one), which is what lets a `/prep`
+// from the WebUI reach the model without a restart (issue #7). The response
+// still reports the file read back from disk.
 func (s *Server) runPrep(w http.ResponseWriter, r *http.Request) {
 	if !s.requireApp(w) {
 		return
@@ -211,6 +212,12 @@ func (s *Server) runPrep(w http.ResponseWriter, r *http.Request) {
 	}
 	// Prep rescanned the tree, so the cache is both stale and replaceable.
 	s.storeProjectInfo(report.Info)
+	// Swap the rewritten Boop.md into the runtime so the next turn's system
+	// prompt carries it. Best-effort: the file on disk is the source of truth
+	// and the response reads it back regardless.
+	if s.app != nil {
+		_ = s.app.ReloadMemory()
+	}
 
 	writeJSON(w, http.StatusOK, prepResponse{
 		Project:       projectViewOf(report.Info),
@@ -286,13 +293,17 @@ func (s *Server) storeProjectInfo(info *project.Info) time.Time {
 
 // memoryView renders the runtime's project memory.
 func (s *Server) memoryView() memoryView {
-	if s.app == nil || s.app.Memory == nil {
+	if s.app == nil {
+		return memoryView{}
+	}
+	mem := s.app.Memory()
+	if mem == nil {
 		return memoryView{}
 	}
 	return memoryView{
-		Path:    s.app.Memory.Path(),
+		Path:    mem.Path(),
 		Exists:  true,
-		Content: string(s.app.Memory.Render()),
+		Content: string(mem.Render()),
 	}
 }
 

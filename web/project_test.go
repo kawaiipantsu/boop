@@ -189,6 +189,16 @@ func TestProjectPrep(t *testing.T) {
 			t.Errorf("prep modified %s", name)
 		}
 	}
+
+	// The runtime's in-process memory must now reflect what prep wrote, so the
+	// next turn's system prompt carries it without a restart (issue #7).
+	mem := srv.app.Memory()
+	if mem == nil || !strings.Contains(string(mem.Render()), "widget") {
+		t.Errorf("App.Memory was not reloaded after prep:\n%s", mem.Render())
+	}
+	if string(mem.Render()) != resp.Memory.Content {
+		t.Error("the reloaded memory does not match the file prep wrote")
+	}
 }
 
 // TestProjectRouting covers the verbs and the unknown subpath.

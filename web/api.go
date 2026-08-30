@@ -208,7 +208,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.app != nil {
 		resp.Warnings = s.app.Warnings
-		resp.HasMemory = s.app.Memory != nil
+		resp.HasMemory = s.app.Memory() != nil
 		if s.app.Workspace != nil {
 			resp.ProjectPath = s.app.Workspace.Root()
 		}
@@ -1297,8 +1297,8 @@ func (s *Server) publishTurnError(sessionID string, err error) {
 // the plain CLI sends so the two frontends behave identically (§2.3).
 func (s *Server) systemPrompt(providerName, model string) string {
 	var memory string
-	if s.app.Memory != nil {
-		memory = string(s.app.Memory.Render())
+	if m := s.app.Memory(); m != nil {
+		memory = string(m.Render())
 	}
 	root := ""
 	if s.app.Workspace != nil {
