@@ -300,6 +300,7 @@ Models never get a shell. Every action goes through a registered, schema-driven 
 | `attach` — inspect docs/images | `format` — detect & format code | |
 | `memory` — project Boop.md memory | `todo` — session working task list | |
 | `checkpoint` — snapshot & revert | `ask` — in-turn clarifying question | |
+| | `process` — background process management | |
 
 </div>
 

@@ -67,6 +67,7 @@ func BuildTools(cfg *config.Config, deps ToolDeps) (*tools.Registry, error) {
 	run.Classify = classify
 	run.DefaultTimeout = cfg.Execution.CommandTimeout.Std()
 	reg.Register(run)
+	reg.Register(tools.NewProcessTool(tools.NewProcessManager(deps.Workspace)))
 
 	reg.Register(tools.NewGitTool(deps.Executor, deps.Workspace))
 
