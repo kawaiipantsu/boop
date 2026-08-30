@@ -23,8 +23,8 @@ func fakeFleet(runner agent.TaskRunner) func(*app.App, string) *agent.Coordinato
 			Runner:    runner,
 			Bus:       a.Bus,
 			SessionID: sessionID,
-			Provider:  a.Config.Provider,
-			Model:     a.Config.Model,
+			Provider:  a.Config().Provider,
+			Model:     a.Config().Model,
 			Max:       2,
 		})
 	}
@@ -34,7 +34,7 @@ func fakeFleet(runner agent.TaskRunner) func(*app.App, string) *agent.Coordinato
 func newAgentServer(t *testing.T, runner agent.TaskRunner, mutate func(*config.Config)) (*Server, *app.App) {
 	t.Helper()
 	application := newTestApp(t)
-	cfg := *application.Config
+	cfg := *application.Config()
 	if mutate != nil {
 		mutate(&cfg)
 	}

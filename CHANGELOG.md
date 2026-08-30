@@ -40,6 +40,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   system message every turn, and `/prep` (terminal and `POST /api/project/prep`)
   reloads the file into the running runtime.
 
+- `PUT /api/config` now applies changes to the running process (#6). The
+  configuration lives behind an atomic holder (`App.Config()` /
+  `App.ApplyConfig`), so a swap is race-free for the many goroutines that read
+  it. Execution mode, the permission rules, the active provider and model, the
+  loop bounds and the agent limits take effect on the next turn; the web bind
+  address, the logger, outbound web access and the provider definitions are
+  wired at construction and are reported in the new `restart_fields` response
+  key, with `restart_required` true only when one of them actually changed.
+
 ### Changed
 
 - `provider.EmbeddingProvider` documents that it is implemented and verified but

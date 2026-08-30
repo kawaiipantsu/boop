@@ -118,13 +118,13 @@ func (m *Model) setAgentsMax(arg string) tea.Cmd {
 		if n < 1 {
 			return m.say(EntryError, fmt.Sprintf("the agent limit must be at least 1, got %d", n))
 		}
-		m.app.Config.Agents.Max = n
+		m.app.Config().Agents.Max = n
 		return m.say(EntrySystem, fmt.Sprintf("agent limit set to %d; %s", n, agentsOffText()))
 	}
 	if err := c.SetMax(n); err != nil {
 		return m.say(EntryError, err.Error())
 	}
-	m.app.Config.Agents.Max = n
+	m.app.Config().Agents.Max = n
 	return m.say(EntrySystem, fmt.Sprintf("at most %d agent(s) will run at once", n))
 }
 
@@ -138,12 +138,12 @@ func (m *Model) setAgentsEnabled(on bool) tea.Cmd {
 		if c := m.coordinator(); c != nil {
 			c.SetEnabled(false)
 		}
-		m.app.Config.Agents.Enabled = false
+		m.app.Config().Agents.Enabled = false
 		m.fleet, m.agentsActive = nil, 0
 		return m.say(EntrySystem, "agents are off; anything running has been cancelled")
 	}
 
-	m.app.Config.Agents.Enabled = true
+	m.app.Config().Agents.Enabled = true
 	c := m.coordinator()
 	if c == nil {
 		return m.say(EntryError, "agents could not be enabled; the runtime has no coordinator")
@@ -169,7 +169,7 @@ func (m *Model) syncAgentCount() {
 
 // agentStatusLine is the /status row for the fleet.
 func (m *Model) agentStatusLine() string {
-	cfg := m.app.Config
+	cfg := m.app.Config()
 	c := m.fleet
 	if c == nil {
 		// No fleet has been built yet, so nothing is running whatever the

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -269,11 +270,65 @@ func TestPutConfigKeepsRedactedHeaders(t *testing.T) {
 	}
 }
 
+// TestPutConfigAppliesLive: a change to a hot-swappable setting takes effect on
+// the running runtime with no restart, and a construction-time setting is
+// reported as needing one (#6).
+func TestPutConfigAppliesLive(t *testing.T) {
+	application := newTestApp(t)
+	srv := newTestServer(t, func(o *Options) {
+		o.App = application
+		o.Config = application.Config()
+		o.SaveConfig = func(*config.Config) error { return nil }
+	})
+
+	if application.Config().Execution.Mode == permissions.ModeAuto {
+		t.Fatal("fixture already in auto mode; test cannot show the change")
+	}
+
+	// 1. execution.mode is live: no restart, and the evaluator sees it.
+	incoming := application.Config().Clone()
+	incoming.Execution.Mode = permissions.ModeAuto
+	rec, body := doJSON(t, srv, http.MethodPut, "/api/config", configRequest{Config: incoming})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (body %s)", rec.Code, body)
+	}
+	var resp configResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.RestartRequired {
+		t.Errorf("execution.mode change reported restart_required; body %s", body)
+	}
+	if application.Config().Execution.Mode != permissions.ModeAuto {
+		t.Error("App.Config() did not pick up the new mode")
+	}
+	if application.Evaluator.Policy().Mode != permissions.ModeAuto {
+		t.Error("the permission evaluator did not pick up the new mode")
+	}
+
+	// 2. web.port is construction-time: it still needs a restart, and says so.
+	incoming = application.Config().Clone()
+	incoming.Web.Port = 9191
+	rec, body = doJSON(t, srv, http.MethodPut, "/api/config", configRequest{Config: incoming})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (body %s)", rec.Code, body)
+	}
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !resp.RestartRequired {
+		t.Error("web.port change should report restart_required")
+	}
+	if !slices.Contains(resp.RestartFields, "web") {
+		t.Errorf("restart_fields = %v, want it to name \"web\"", resp.RestartFields)
+	}
+}
+
 // TestStatus checks the §54 document, including that it never carries a token.
 func TestStatus(t *testing.T) {
 	srv := newTestServer(t, func(o *Options) {
 		o.App = newTestApp(t)
-		o.Config = o.App.Config
+		o.Config = o.App.Config()
 		o.Broker = permissions.NewBroker()
 	})
 
@@ -456,7 +511,7 @@ func TestSessionLifecycle(t *testing.T) {
 	application := newTestApp(t)
 	srv := newTestServer(t, func(o *Options) {
 		o.App = application
-		o.Config = application.Config
+		o.Config = application.Config()
 	})
 
 	rec, body := doJSON(t, srv, http.MethodPost, "/api/session", sessionRequest{Title: "first"})
@@ -506,7 +561,7 @@ func TestMessageRequiresContent(t *testing.T) {
 	application := newTestApp(t)
 	srv := newTestServer(t, func(o *Options) {
 		o.App = application
-		o.Config = application.Config
+		o.Config = application.Config()
 	})
 	rec, body := doJSON(t, srv, http.MethodPost, "/api/message", messageRequest{Content: "   "})
 	if rec.Code != http.StatusBadRequest {
@@ -549,7 +604,7 @@ func TestStatsWithoutTracker(t *testing.T) {
 	application := newTestApp(t)
 	srv := newTestServer(t, func(o *Options) {
 		o.App = application
-		o.Config = application.Config
+		o.Config = application.Config()
 	})
 	sess, err := application.Sessions.Create(t.Context(), session.CreateOptions{ProjectPath: application.Workspace.Root()})
 	if err != nil {
@@ -578,7 +633,7 @@ func TestTurnConflict(t *testing.T) {
 	application := newTestApp(t)
 	srv := newTestServer(t, func(o *Options) {
 		o.App = application
-		o.Config = application.Config
+		o.Config = application.Config()
 	})
 
 	sess, err := application.Sessions.Create(t.Context(), session.CreateOptions{

@@ -473,7 +473,7 @@ func TestStatsUseTheAppTracker(t *testing.T) {
 	application := newTestApp(t)
 	srv := newTestServer(t, func(o *Options) {
 		o.App = application
-		o.Config = application.Config
+		o.Config = application.Config()
 	})
 	if srv.stats != application.Stats {
 		t.Fatal("the server did not adopt the runtime's stats tracker")
@@ -498,7 +498,7 @@ func TestStatsOptionOverridesTheAppTracker(t *testing.T) {
 	tracker := stats.New()
 	srv := newTestServer(t, func(o *Options) {
 		o.App = application
-		o.Config = application.Config
+		o.Config = application.Config()
 		o.Stats = tracker
 	})
 	if srv.stats != tracker {

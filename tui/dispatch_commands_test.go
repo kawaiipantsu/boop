@@ -171,7 +171,7 @@ func TestAgentsSubcommands(t *testing.T) {
 	if got := m.coordinator().Max(); got != 2 {
 		t.Fatalf("/agents max 2 left the limit at %d", got)
 	}
-	if got := m.app.Config.Agents.Max; got != 2 {
+	if got := m.app.Config().Agents.Max; got != 2 {
 		t.Fatalf("/agents max 2 left the configured limit at %d", got)
 	}
 }
@@ -195,7 +195,7 @@ func TestAgentsOffStopsTheFleetAndOnRebuildsIt(t *testing.T) {
 	if m.agentCount() != 0 {
 		t.Fatalf("header still reports %d agents after /agents off", m.agentCount())
 	}
-	if m.app.Config.Agents.Enabled {
+	if m.app.Config().Agents.Enabled {
 		t.Fatal("/agents off left agents enabled in configuration")
 	}
 	if spawned.State() != agent.StatusCancelled {
@@ -204,7 +204,7 @@ func TestAgentsOffStopsTheFleetAndOnRebuildsIt(t *testing.T) {
 
 	m.transcript.Clear()
 	runCommand(t, m, "/agents on")
-	if !m.app.Config.Agents.Enabled {
+	if !m.app.Config().Agents.Enabled {
 		t.Fatal("/agents on did not enable agents")
 	}
 	if m.coordinator() == nil {
@@ -290,7 +290,7 @@ func TestConfigModeWritesFileAndMovesTheEvaluator(t *testing.T) {
 
 	runCommand(t, m, "/config mode auto")
 
-	if got := m.app.Config.Execution.Mode; got != permissions.ModeAuto {
+	if got := m.app.Config().Execution.Mode; got != permissions.ModeAuto {
 		t.Fatalf("running config mode = %q, want auto", got)
 	}
 	if got := m.app.Evaluator.Policy().Mode; got != permissions.ModeAuto {
@@ -325,8 +325,8 @@ func TestConfigWebPortPersists(t *testing.T) {
 
 	runCommand(t, m, "/config web port 8585")
 
-	if m.app.Config.Web.Port != 8585 {
-		t.Fatalf("running web.port = %d, want 8585", m.app.Config.Web.Port)
+	if m.app.Config().Web.Port != 8585 {
+		t.Fatalf("running web.port = %d, want 8585", m.app.Config().Web.Port)
 	}
 	disk, err := config.LoadFrom(filepath.Join(dir, "config.yaml"))
 	if err != nil {
@@ -354,7 +354,7 @@ func TestConfigAgentsOnPersistsAndMovesTheFleet(t *testing.T) {
 
 	runCommand(t, m, "/config agents on")
 
-	if !m.app.Config.Agents.Enabled {
+	if !m.app.Config().Agents.Enabled {
 		t.Fatal("running config still has agents disabled")
 	}
 	disk, err := config.LoadFrom(filepath.Join(dir, "config.yaml"))

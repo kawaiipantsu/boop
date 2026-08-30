@@ -99,8 +99,12 @@ type Options struct {
 // session and the set of connected clients; everything else is read from, or
 // delegated to, the runtime in Options.App.
 type Server struct {
-	app     *app.App
-	cfg     *config.Config
+	app *app.App
+	// cfg is the fallback configuration used only when there is no App (the
+	// static-assets-only server in tests). It is a Holder so a PUT /api/config
+	// in that mode is still race-free; with an App attached, conf() reads
+	// through App.Config() instead.
+	cfg     *config.Holder
 	web     config.WebConfig
 	broker  *permissions.Broker
 	stats   *stats.Tracker
@@ -157,7 +161,7 @@ type Server struct {
 func New(opts Options) (*Server, error) {
 	cfg := opts.Config
 	if cfg == nil && opts.App != nil {
-		cfg = opts.App.Config
+		cfg = opts.App.Config()
 	}
 	if cfg == nil {
 		return nil, errors.New("web: a configuration is required")
@@ -233,7 +237,7 @@ func New(opts Options) (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		app:          opts.App,
-		cfg:          cfg,
+		cfg:          config.NewHolder(cfg),
 		web:          webCfg,
 		broker:       opts.Broker,
 		stats:        tracker,
@@ -294,6 +298,14 @@ func isTruthy(v string) bool {
 func (s *Server) warn(msg string) {
 	s.log.Printf("!!! WARNING: %s", msg)
 }
+
+// conf returns the current configuration snapshot the handlers read.
+//
+// The server keeps its own Holder rather than always delegating to App.Config()
+// because Options.Config may deliberately differ from App.Config (a test that
+// runs the API against a tweaked config with a real runtime behind it). A live
+// PUT keeps the two in step by writing both.
+func (s *Server) conf() *config.Config { return s.cfg.Load() }
 
 // Handler returns the HTTP handler, for httptest and for embedding the WebUI
 // behind another mux.

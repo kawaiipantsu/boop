@@ -417,7 +417,7 @@ func (s *Server) sendHello(c *wsClient) {
 		Protocol:         ProtocolVersion,
 		ServerTime:       s.now(),
 		SessionID:        s.CurrentSession(),
-		Mode:             string(s.cfg.Execution.Mode),
+		Mode:             string(s.conf().Execution.Mode),
 		PendingApprovals: []permissions.PendingApproval{},
 		Grants:           []permissions.Grant{},
 	}

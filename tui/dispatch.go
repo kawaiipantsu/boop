@@ -147,7 +147,7 @@ func (m *Model) statusText() string {
 		b.WriteString("runtime     not attached\n")
 		return strings.TrimRight(b.String(), "\n")
 	}
-	cfg := m.app.Config
+	cfg := m.app.Config()
 	fmt.Fprintf(&b, "provider    %s\n", m.providerModel())
 	fmt.Fprintf(&b, "mode        %s\n", cfg.Execution.Mode)
 	fmt.Fprintf(&b, "workdir     %s\n", m.workingDir())
@@ -196,7 +196,7 @@ func (m *Model) statsText() string {
 	fmt.Fprintf(&b, "  output tokens    %d\n", s.Completion)
 	fmt.Fprintf(&b, "  total tokens     %d\n", s.Total)
 	fmt.Fprintf(&b, "  elapsed          %s\n", formatDuration(time.Since(m.startedAt).Truncate(time.Second)))
-	if m.app != nil && m.app.Config != nil && isLocalProvider(m.app.Config, m.app.Config.Provider) {
+	if m.app != nil && m.app.Config() != nil && isLocalProvider(m.app.Config(), m.app.Config().Provider) {
 		b.WriteString("  api cost         0.00 (local provider)\n")
 	} else {
 		b.WriteString("  api cost         not tracked (no pricing metadata configured)\n")
@@ -298,14 +298,14 @@ func (m *Model) providerCmd(cmd Command) tea.Cmd {
 	names := m.app.Router.Registry().Names()
 	if len(cmd.Args) == 0 {
 		return m.say(EntrySystem, fmt.Sprintf("provider %s\nconfigured: %s\nswitch with /provider <name>",
-			m.app.Config.Provider, strings.Join(names, ", ")))
+			m.app.Config().Provider, strings.Join(names, ", ")))
 	}
 	want := cmd.Arg(0)
 	if _, ok := m.app.Router.Registry().Get(want); !ok {
 		return m.say(EntryError, fmt.Sprintf("no provider named %q is configured; available: %s",
 			want, strings.Join(names, ", ")))
 	}
-	m.app.Config.Provider = want
+	m.app.Config().Provider = want
 	m.say(EntrySystem, "provider is now "+want)
 	return m.persistSelection()
 }
@@ -317,9 +317,9 @@ func (m *Model) modelCmd(cmd Command) tea.Cmd {
 	}
 	if len(cmd.Args) == 0 {
 		return m.say(EntrySystem, fmt.Sprintf("model %s on %s\nlist options with /models, switch with /model <id>",
-			orDefault(m.app.Config.Model, "(provider default)"), m.app.Config.Provider))
+			orDefault(m.app.Config().Model, "(provider default)"), m.app.Config().Provider))
 	}
-	m.app.Config.Model = cmd.Rest
+	m.app.Config().Model = cmd.Rest
 	m.say(EntrySystem, "model is now "+cmd.Rest)
 	return m.persistSelection()
 }
@@ -328,7 +328,7 @@ func (m *Model) modelCmd(cmd Command) tea.Cmd {
 // resumed session comes back on the same pairing.
 func (m *Model) persistSelection() tea.Cmd {
 	sessions, id := m.app.Sessions, m.sessionID
-	providerName, model := m.app.Config.Provider, m.app.Config.Model
+	providerName, model := m.app.Config().Provider, m.app.Config().Model
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), asyncTimeout)
 		defer cancel()
@@ -350,7 +350,7 @@ func (m *Model) modelsCmd(cmd Command) tea.Cmd {
 	}
 	name := cmd.Arg(0)
 	if name == "" {
-		name = m.app.Config.Provider
+		name = m.app.Config().Provider
 	}
 	p, ok := m.app.Router.Registry().Get(name)
 	if !ok {
@@ -417,7 +417,7 @@ func (m *Model) permissionsCmd(cmd Command) tea.Cmd {
 		policy := m.app.Evaluator.Policy()
 		policy.Mode = mode
 		m.app.Evaluator.SetPolicy(policy)
-		m.app.Config.Execution.Mode = mode
+		m.app.Config().Execution.Mode = mode
 		return m.say(EntrySystem, "execution mode is now "+string(mode))
 	case "":
 		return m.say(EntrySystem, m.permissionsText())
@@ -496,8 +496,8 @@ func (m *Model) newSessionCmd(note string) tea.Cmd {
 		defer cancel()
 		sess, err := application.Sessions.Create(ctx, session.CreateOptions{
 			ProjectPath: application.Workspace.Root(),
-			Provider:    application.Config.Provider,
-			Model:       application.Config.Model,
+			Provider:    application.Config().Provider,
+			Model:       application.Config().Model,
 		})
 		if err != nil {
 			return infoMsg{entries: []Entry{{Kind: EntryError, Text: "could not start a session: " + err.Error()}}}
@@ -643,7 +643,7 @@ func orDefault(s, fallback string) string {
 // terminal that spawned it in ways neither side can reason about. Reporting
 // the address honestly is more useful than a half-owned listener (§22, §58).
 func (m *Model) webCmd(cmd Command) tea.Cmd {
-	if m.app == nil || m.app.Config == nil {
+	if m.app == nil || m.app.Config() == nil {
 		return m.say(EntryError, "no runtime is attached")
 	}
 	switch cmd.Arg(0) {
@@ -658,7 +658,7 @@ func (m *Model) webCmd(cmd Command) tea.Cmd {
 
 // webText describes the configured WebUI.
 func (m *Model) webText() string {
-	cfg := m.app.Config
+	cfg := m.app.Config()
 	var b strings.Builder
 	b.WriteString("the WebUI is a separate process; this terminal does not start one\n")
 	fmt.Fprintf(&b, "  configured  http://%s:%d\n", cfg.Web.Listen, cfg.Web.Port)
@@ -671,7 +671,7 @@ func (m *Model) webText() string {
 
 // webStatusLine is the /status row for the WebUI.
 func (m *Model) webStatusLine() string {
-	cfg := m.app.Config
+	cfg := m.app.Config()
 	return fmt.Sprintf("not served from this process (%s:%d, enabled=%t) — run `boop --web`",
 		cfg.Web.Listen, cfg.Web.Port, cfg.Web.Enabled)
 }

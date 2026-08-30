@@ -67,7 +67,7 @@ func TestEventStreamDeliversBusEvents(t *testing.T) {
 	application := newTestApp(t)
 	srv, base := newRunningServer(t, func(o *Options) {
 		o.App = application
-		o.Config = application.Config
+		o.Config = application.Config()
 	})
 
 	conn, _, err := dialEvents(t, base, nil)
@@ -121,7 +121,7 @@ func TestEventFilter(t *testing.T) {
 	application := newTestApp(t)
 	srv, base := newRunningServer(t, func(o *Options) {
 		o.App = application
-		o.Config = application.Config
+		o.Config = application.Config()
 	})
 
 	conn, _, err := dialEvents(t, base, nil)
@@ -166,7 +166,7 @@ func TestApprovalOverWebSocket(t *testing.T) {
 	application := newTestApp(t)
 	_, base := newRunningServer(t, func(o *Options) {
 		o.App = application
-		o.Config = application.Config
+		o.Config = application.Config()
 		o.Broker = broker
 	})
 
@@ -414,7 +414,7 @@ func TestSlowClientIsDisconnected(t *testing.T) {
 	application := newTestApp(t)
 	srv, base := newRunningServer(t, func(o *Options) {
 		o.App = application
-		o.Config = application.Config
+		o.Config = application.Config()
 	})
 
 	conn, _, err := dialEvents(t, base, nil)

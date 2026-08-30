@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 	"sync/atomic"
 
@@ -53,7 +54,6 @@ type Options struct {
 
 // App is an assembled Boop runtime.
 type App struct {
-	Config    *config.Config
 	Bus       *Bus
 	Router    *provider.Router
 	Tools     *tools.Registry
@@ -85,6 +85,12 @@ type App struct {
 	// next turn instead of only after a restart (§64.5, issue #7).
 	memory     atomic.Pointer[project.Memory]
 	memoryRoot string
+
+	// cfg holds the live configuration. It is a Holder rather than a bare
+	// pointer so a setting can change while Boop runs without racing the many
+	// goroutines that read it (§64, issue #6). Read it with Config(); replace
+	// it with ApplyConfig.
+	cfg *config.Holder
 }
 
 // Memory returns the current project-memory snapshot, or nil if none is
@@ -108,6 +114,52 @@ func (a *App) ReloadMemory() error {
 	}
 	a.memory.Store(mem)
 	return nil
+}
+
+// Config returns the current configuration snapshot. The returned value must be
+// treated as read-only: it may be shared with an in-flight turn, and the next
+// ApplyConfig swaps in a fresh one rather than editing this.
+func (a *App) Config() *config.Config { return a.cfg.Load() }
+
+// ApplyConfig swaps in a validated replacement configuration and re-derives the
+// runtime state that can move without a restart — today, the permission policy
+// (execution mode and the rule table), which the Evaluator already holds behind
+// its own lock.
+//
+// It returns the labels of settings that were changed but only take effect on
+// restart, so a caller can report `restart_required` precisely; an empty slice
+// means the change is fully live. The caller is responsible for having
+// validated next and for not mutating it afterwards.
+func (a *App) ApplyConfig(next *config.Config) []string {
+	prev := a.cfg.Load()
+	a.cfg.Store(next)
+	if a.Evaluator != nil {
+		a.Evaluator.SetPolicy(next.Policy())
+	}
+	return restartOnlyChanges(prev, next)
+}
+
+// restartOnlyChanges lists the settings that differ between prev and next but
+// are wired at construction time, so a running process cannot pick them up: the
+// WebUI bind address and the rest of the web block, the logger, outbound web
+// access (it gates which tools exist), and the provider/router definitions.
+func restartOnlyChanges(prev, next *config.Config) []string {
+	if prev == nil {
+		return nil
+	}
+	var changed []string
+	add := func(label string, differ bool) {
+		if differ {
+			changed = append(changed, label)
+		}
+	}
+	add("web", !reflect.DeepEqual(prev.Web, next.Web))
+	add("logging", !reflect.DeepEqual(prev.Logging, next.Logging))
+	add("network", !reflect.DeepEqual(prev.Network, next.Network))
+	add("providers", !reflect.DeepEqual(prev.Providers, next.Providers))
+	add("routing", !reflect.DeepEqual(prev.Routing, next.Routing) || !reflect.DeepEqual(prev.Fallback, next.Fallback))
+	add("execution.command_timeout", prev.Execution.CommandTimeout != next.Execution.CommandTimeout)
+	return changed
 }
 
 // New assembles a runtime from configuration.
@@ -191,7 +243,7 @@ func New(ctx context.Context, opts Options) (*App, error) {
 	}
 
 	app := &App{
-		Config:       cfg,
+		cfg:          config.NewHolder(cfg),
 		Warnings:     warnings,
 		Bus:          NewBus(),
 		Router:       router,
@@ -233,13 +285,13 @@ func (a *App) NewLoop(sessionID string) *Loop {
 		Evaluator:            a.Evaluator,
 		Approver:             a.Approver,
 		Bus:                  a.Bus,
-		MaxIterations:        a.Config.Execution.MaxToolIterations,
-		MaxRetriesPerCommand: a.Config.Execution.MaxRetriesPerCommand,
+		MaxIterations:        a.Config().Execution.MaxToolIterations,
+		MaxRetriesPerCommand: a.Config().Execution.MaxRetriesPerCommand,
 		Context:              a.newContextManager(),
 		SessionID:            sessionID,
 		Selection: provider.Selection{
-			Provider: a.Config.Provider,
-			Model:    a.Config.Model,
+			Provider: a.Config().Provider,
+			Model:    a.Config().Model,
 		},
 	}
 }

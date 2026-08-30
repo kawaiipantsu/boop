@@ -320,7 +320,7 @@ envelope as everything else rather than a plain-text 405.
 | Endpoint | Purpose |
 |---|---|
 | `/api/status` | Version, uptime, session state, provider health, current model, agent counts. No secrets |
-| `/api/config` | `GET` the effective configuration; `PUT` to update and persist it |
+| `/api/config` | `GET` the effective configuration; `PUT` to update, persist **and apply it live** — most settings take effect on the next turn, and `restart_required` / `restart_fields` name the few (web bind, logger, outbound web access, provider definitions) that still need a restart |
 | `/api/models` | Models available from configured providers |
 | `/api/providers` | Configured providers and their health |
 | `/api/agents` | Agent fleet state |
