@@ -501,6 +501,13 @@ type EmbeddingProvider interface {
 }
 ```
 
+`EmbeddingProvider` is implemented by the OpenAI-compatible client and the local
+adapters and is verified against a real server, but no subsystem calls it yet.
+It is retained deliberately: the intended future use is semantic search over a
+project as a complement to the regex `search` tool, deferred because it requires
+an index to build and invalidate. Until something adopts it, it stays an
+available capability rather than dead code to remove.
+
 ## Initial adapters
 
 Implement:

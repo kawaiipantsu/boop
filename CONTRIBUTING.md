@@ -45,6 +45,7 @@ make test-integration             # -tags=integration
 make test-e2e                     # -tags=e2e
 make race                         # race detector
 make coverage                     # writes coverage.html
+make fuzz                          # fuzz targets, FUZZTIME each (default 20s)
 make lint                         # golangci-lint if installed, else go vet
 ```
 

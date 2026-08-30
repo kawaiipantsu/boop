@@ -444,6 +444,7 @@ make test-integration        # -tags=integration
 make test-e2e                # -tags=e2e
 make coverage                # HTML coverage report
 make race                    # race detector
+make fuzz                    # fuzz targets (FUZZTIME each, default 20s)
 make release-check           # verify release readiness
 ```
 
