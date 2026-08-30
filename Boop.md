@@ -108,5 +108,14 @@ Format:
 
 ## Agent Notes
 
+- 2026-08-30: `main` and `develop` are protected via GitHub rulesets (require PR,
+  require the CI status checks — Test, Cross-build, Lint, Branch flow — to
+  pass, block force-push/deletion). `main` only accepts merges from
+  `release/<version>` or `hotfix/<...>`; the `.github/workflows/branch-flow.yml`
+  job enforces this as a required check, because 24 open PRs had all been
+  opened against `main` from `feature/*` branches before this was in place.
+  Configure further via `gh api repos/kawaiipantsu/boop/rulesets`, not the
+  classic branch-protection endpoint.
+
 ## Session Summaries
 
