@@ -70,6 +70,31 @@ renamed, so an interrupted write cannot leave a truncated config behind.
 written by Boop as well as by hand, and `yaml.v3` cannot round-trip your
 comments.
 
+## Editing from the TUI
+
+`/config` with no arguments prints the effective configuration; credential
+values are never shown, only the environment-variable names.
+
+`/config <field> <value>` changes one setting, writes it straight to
+`config.yaml`, and reports whether the running process could honour it now or
+needs a restart. It reloads the file before writing, so a per-invocation flag
+override (`--mode`, `--provider`) is never frozen in, and a change made in
+another editor is not clobbered. An invalid value is rejected and nothing is
+written.
+
+| Command | Field | Takes effect |
+|---|---|---|
+| `/config mode auto\|confirm` | `execution.mode` | immediately — the evaluator re-reads it every decision |
+| `/config agents on\|off` | `agents.enabled` | immediately — the live fleet moves with it |
+| `/config agents max <n>` | `agents.max` | immediately |
+| `/config web on\|off` | `web.enabled` | next `boop --web` |
+| `/config web port <1-65535>` | `web.port` | next `boop --web` |
+| `/config web listen <ip>` | `web.listen` | next `boop --web` |
+
+The remaining fields (provider, model, base URL, timeouts, token limits,
+temperature, logging) are still edited in `config.yaml` or the WebUI; an
+interactive editor for the full set is planned (§55).
+
 ## Validation
 
 `Validate()` returns **errors** and **warnings** separately, and the split

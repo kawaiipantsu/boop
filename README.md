@@ -274,6 +274,7 @@ boop version                  # ℹ️   build metadata
 /agents    🤖  manage agents          /permissions 🔐  review policy
 /context   📋  manage context         /session    💾  save · load · list
 /stats     📊  tokens and cost        /web        🌐  toggle the WebUI
+/config    ⚙️  show config, or set one field: /config mode auto · /config web port 8585
 ```
 
 <br/>

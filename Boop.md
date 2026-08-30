@@ -117,5 +117,18 @@ Format:
   Configure further via `gh api repos/kawaiipantsu/boop/rulesets`, not the
   classic branch-protection endpoint.
 
+- 2026-08-30: `/config` (issue #16, §55) now takes direct set commands as well
+  as printing the effective config: `/config mode auto|confirm`,
+  `/config agents on|off`, `/config agents max <n>`, `/config web on|off`,
+  `/config web port <n>`, `/config web listen <ip>`. Each reloads `config.yaml`
+  (so per-invocation `--mode`/`--provider` flags are never persisted), applies
+  one field, validates, and saves via `config.Save()`. `mode` and `agents`
+  also move the running evaluator/fleet through the existing `/permissions`
+  and `/agents` helpers; `web.*` only persists and says to restart
+  `boop --web`. Lives in `tui/commands_config.go`. The full interactive editor
+  (provider, model, timeouts, token limits, temperature, logging) is still
+  outstanding and waits on the synchronised config holder from issue #6 for
+  the settings a live process cannot safely adopt.
+
 ## Session Summaries
 
