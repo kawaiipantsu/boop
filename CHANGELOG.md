@@ -37,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   where the runtime can honour it — reporting exactly which groups need a
   restart — instead of the earlier in-place mutation.
 
+- `/config edit` — a full-screen TUI editor over the same fields (§55). Arrow
+  keys move, ←/→ or space toggle/cycle, Enter edits a text value, Ctrl+S saves,
+  Esc cancels. Per-field validation, a `live` / `restart` tag on every row, and
+  a `*` on changed fields. Save validates the whole draft, writes `config.yaml`
+  and calls `App.ApplyConfig`. Credentials have no field in the editor.
+
 ### Fixed
 
 - Project memory (`Boop.md`) now actually reaches the model, and reaches it

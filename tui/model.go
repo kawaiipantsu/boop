@@ -137,6 +137,10 @@ type Model struct {
 	// selection is the explicitly chosen context behind /context add and
 	// /context clear (§47).
 	selection *session.Selection
+
+	// editor is the full-screen /config editor. While non-nil it owns the
+	// keyboard and replaces the transcript body (§55).
+	editor *configEditor
 }
 
 // searchState is the Ctrl+R reverse history search.

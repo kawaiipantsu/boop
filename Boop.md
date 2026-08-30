@@ -100,8 +100,14 @@ Changes to these files can affect production; treat them with deliberate intent.
   cloned live snapshot. The confirmation says "in effect now" or "restart to
   apply (<groups>)" from `ApplyConfig`'s return. `/config provider|model` also
   call `persistSelection`. `temperature` deliberately has no command — no config
-  field for it yet. A full-screen visual editor is left as a future nicety; the
-  direct commands meet §55's intent.
+  field for it yet.
+- `/config edit` (`tui/config_editor.go`) is the full-screen editor: a modal
+  `Model.editor` that owns the keyboard (routed in `handleKey` before `search`,
+  after `prompt`) and replaces `bodyRows`. Fields are `configField{get,set}`
+  closures over `*config.Config`; save re-applies only the *touched* fields, in
+  field order, to both the reloaded disk config and a clone of the running one,
+  then `App.ApplyConfig`. `editorRows` returns exactly `layout.Body` rows so the
+  frame budget is untouched. No credential field exists in the editor.
 
 ## Current Work
 

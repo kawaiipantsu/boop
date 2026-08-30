@@ -26,6 +26,9 @@ func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 	if m.prompt != nil {
 		return m.approvalKey(msg)
 	}
+	if m.editor != nil {
+		return m.editorKey(msg)
+	}
 	if m.search != nil {
 		return m.searchKey(msg)
 	}
