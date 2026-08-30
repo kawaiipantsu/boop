@@ -366,6 +366,152 @@ func TestConfigAgentsOnPersistsAndMovesTheFleet(t *testing.T) {
 	}
 }
 
+func TestConfigProviderSwitchesLive(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, nil) // default active provider is "lemonade"
+
+	runCommand(t, m, "/config provider ollama")
+
+	if got := m.app.Config().Provider; got != "ollama" {
+		t.Fatalf("running provider = %q, want ollama", got)
+	}
+	disk, err := config.LoadFrom(filepath.Join(dir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if disk.Provider != "ollama" {
+		t.Fatalf("persisted provider = %q, want ollama", disk.Provider)
+	}
+	if txt := transcriptText(m); !strings.Contains(txt, "in effect now") {
+		t.Fatalf("a live switch should say so:\n%s", txt)
+	}
+}
+
+func TestConfigProviderRejectsUnknown(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, nil)
+	runCommand(t, m, "/config provider nope")
+	if got := transcriptText(m); !strings.Contains(got, "no provider named") {
+		t.Fatalf("expected a rejection, got:\n%s", got)
+	}
+	if m.app.Config().Provider == "nope" {
+		t.Fatal("an unconfigured provider was accepted")
+	}
+}
+
+func TestConfigModelDefaultClearsIt(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, func(c *config.Config) { c.Model = "some-model" })
+
+	runCommand(t, m, "/config model default")
+
+	if m.app.Config().Model != "" {
+		t.Fatalf("model = %q, want it cleared", m.app.Config().Model)
+	}
+	disk, err := config.LoadFrom(filepath.Join(dir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if disk.Model != "" {
+		t.Fatalf("persisted model = %q, want empty", disk.Model)
+	}
+}
+
+func TestConfigLoopLimitIsLive(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, nil)
+
+	runCommand(t, m, "/config max-iterations 7")
+
+	if got := m.app.Config().Execution.MaxToolIterations; got != 7 {
+		t.Fatalf("max iterations = %d, want 7", got)
+	}
+	if txt := transcriptText(m); !strings.Contains(txt, "in effect now") {
+		t.Fatalf("a loop-limit change is live; transcript:\n%s", txt)
+	}
+	disk, err := config.LoadFrom(filepath.Join(dir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if disk.Execution.MaxToolIterations != 7 {
+		t.Fatalf("persisted max iterations = %d, want 7", disk.Execution.MaxToolIterations)
+	}
+}
+
+func TestConfigNetworkOffReportsRestart(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, func(c *config.Config) { c.Network.Enabled = true })
+
+	runCommand(t, m, "/config network off")
+
+	if m.app.Config().Network.Enabled {
+		t.Fatal("running config still has network enabled")
+	}
+	if txt := transcriptText(m); !strings.Contains(txt, "restart to apply") || !strings.Contains(txt, "network") {
+		t.Fatalf("network is restart-only and should say so:\n%s", txt)
+	}
+}
+
+func TestConfigLogLevelPersistsAndValidates(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, nil)
+
+	runCommand(t, m, "/config log level sideways")
+	if got := transcriptText(m); !strings.Contains(got, "usage: /config log level") {
+		t.Fatalf("garbage level should be rejected, got:\n%s", got)
+	}
+
+	runCommand(t, m, "/config log level debug")
+	disk, err := config.LoadFrom(filepath.Join(dir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if disk.Logging.Level != "debug" {
+		t.Fatalf("persisted log level = %q, want debug", disk.Logging.Level)
+	}
+}
+
+func TestConfigTimeoutParses(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, nil)
+
+	runCommand(t, m, "/config timeout notaduration")
+	if got := transcriptText(m); !strings.Contains(got, "usage: /config timeout") {
+		t.Fatalf("bad duration should be rejected, got:\n%s", got)
+	}
+
+	runCommand(t, m, "/config timeout 45s")
+	if got := m.app.Config().Execution.CommandTimeout.Std(); got != 45*time.Second {
+		t.Fatalf("command timeout = %s, want 45s", got)
+	}
+}
+
+func TestConfigBaseURLTargetsAProvider(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, nil)
+
+	runCommand(t, m, "/config base-url ollama http://127.0.0.1:9999")
+
+	if got := m.app.Config().Providers["ollama"].BaseURL; got != "http://127.0.0.1:9999" {
+		t.Fatalf("ollama base URL = %q, want the new value", got)
+	}
+	disk, err := config.LoadFrom(filepath.Join(dir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if disk.Providers["ollama"].BaseURL != "http://127.0.0.1:9999" {
+		t.Fatalf("persisted ollama base URL = %q", disk.Providers["ollama"].BaseURL)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // tool-backed commands
 // ---------------------------------------------------------------------------

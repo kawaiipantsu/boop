@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (gated as `filesystem.read`; a rewrite is `filesystem.write`). TUI slash
   commands `/lint` and `/format [--check]` come with them.
 
+- `/config` direct set commands now cover every adjustable §55 field (#16):
+  `provider`, `model`, `base-url`, `network`, `max-iterations`, `max-retries`,
+  `timeout`, `log level` / `log format`, on top of the existing `mode`, `agents`
+  and `web`. Each writes `config.yaml` and, via `App.ApplyConfig`, applies live
+  where the runtime can honour it — reporting exactly which groups need a
+  restart — instead of the earlier in-place mutation.
+
 ### Fixed
 
 - Project memory (`Boop.md`) now actually reaches the model, and reaches it

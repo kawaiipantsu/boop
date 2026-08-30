@@ -88,7 +88,7 @@ var commandSpecs = []commandSpec{
 	{Name: "prep", Summary: "survey the project and write Boop.md", Status: cmdReady},
 	{Name: "init", Summary: "alias for /prep", Status: cmdReady},
 
-	{Name: "config", Args: "[mode|agents|web …]", Summary: "show the effective configuration, or write one setting to config.yaml (credentials are never printed)", Status: cmdReady},
+	{Name: "config", Args: "[<field> <value>]", Summary: "show the effective configuration, or set one field (mode, provider, model, agents, network, web, timeout, log, …); credentials are never printed", Status: cmdReady},
 	{Name: "provider", Args: "[name]", Summary: "show or switch the active provider", Status: cmdReady},
 	{Name: "model", Args: "[id]", Summary: "show or switch the active model", Status: cmdReady},
 	{Name: "models", Args: "[provider]", Summary: "list models a provider offers", Status: cmdReady},
