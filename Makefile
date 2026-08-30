@@ -42,6 +42,7 @@ help: ## Show available targets
 	@echo "  test-e2e            Run end-to-end tests"
 	@echo "  race                Run tests with the race detector"
 	@echo "  bench               Run benchmarks"
+	@echo "  fuzz                Run fuzz tests"
 	@echo "  coverage            Generate coverage report"
 	@echo ""
 	@echo "Build:"
@@ -113,6 +114,10 @@ race: ## Run tests with the race detector
 .PHONY: bench
 bench: ## Run benchmarks
 	$(GO) test -run '^$$' -bench=. -benchmem ./...
+
+.PHONY: fuzz
+fuzz: ## Run fuzz tests (FUZZTIME?=10s)
+	$(GO) test -fuzz=Fuzz -fuzztime=$$(or $$(FUZZTIME),10s) ./internal/...
 
 .PHONY: coverage
 coverage: ## Generate coverage report
