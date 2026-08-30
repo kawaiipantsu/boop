@@ -65,6 +65,13 @@ Changes to these files can affect production; treat them with deliberate intent.
   a health check creates no files. Provider health and capability probes share a
   5s timeout. An unreachable active provider is reported as an error from
   `runStatus` so the process exits non-zero (§54).
+- `make fuzz` runs each fuzz target in its own `go test` invocation with an
+  explicit `-fuzz=^FuzzName$` regex (Go fuzzes one target per run). It is an
+  optional target, kept out of `make test`; the seed corpora still run under
+  `make test` as ordinary sub-tests, so seeds must always pass.
+- `provider.EmbeddingProvider` is kept though unused: the decision (issue #27) is
+  that semantic project search is the intended adopter and the interface stays
+  until then rather than being removed.
 
 ## Current Work
 

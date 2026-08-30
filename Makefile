@@ -42,6 +42,7 @@ help: ## Show available targets
 	@echo "  test-e2e            Run end-to-end tests"
 	@echo "  race                Run tests with the race detector"
 	@echo "  bench               Run benchmarks"
+	@echo "  fuzz                Run fuzz targets (FUZZTIME each, default 20s)"
 	@echo "  coverage            Generate coverage report"
 	@echo ""
 	@echo "Build:"
@@ -113,6 +114,12 @@ race: ## Run tests with the race detector
 .PHONY: bench
 bench: ## Run benchmarks
 	$(GO) test -run '^$$' -bench=. -benchmem ./...
+
+.PHONY: fuzz
+FUZZTIME ?= 20s
+fuzz: ## Run each fuzz target for $(FUZZTIME) (override with FUZZTIME=)
+	$(GO) test -run '^$$' -fuzz='^FuzzParseRenderRoundTrip$$' -fuzztime=$(FUZZTIME) ./internal/project/
+	$(GO) test -run '^$$' -fuzz='^FuzzClassifyCommand$$' -fuzztime=$(FUZZTIME) ./internal/permissions/
 
 .PHONY: coverage
 coverage: ## Generate coverage report

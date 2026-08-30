@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   machine-readable form; `boop --status` is the flag equivalent. It builds no
   session store and writes no logs.
 
+- `make fuzz` — the last of the §36 optional targets. Runs Go's native fuzzing
+  over two property targets: `FuzzParseRenderRoundTrip` (an untouched `Boop.md`
+  survives `Render(Parse(b)) == b`) and `FuzzClassifyCommand` (the shell risk
+  classifier never panics and always returns a gated category and risk).
+  `FUZZTIME` overrides the per-target budget.
+
+### Changed
+
+- `provider.EmbeddingProvider` documents that it is implemented and verified but
+  deliberately unused for now, with semantic project search as the intended
+  future adopter (PROJECT.md §7).
+
 ## [0.1.0-rc.1] - 2026-08-29
 
 First release candidate. The core runtime, tool layer, permission engine,

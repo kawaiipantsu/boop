@@ -179,6 +179,13 @@ type EmbeddingResponse struct {
 }
 
 // EmbeddingProvider is implemented by backends that expose embeddings.
+//
+// The OpenAI-compatible client and the local adapters implement it and it is
+// verified against a real server, but nothing in Boop calls it yet: §7 presents
+// embeddings as an optional provider capability, not a feature. It is kept
+// deliberately, ready for the obvious future use — semantic search over a
+// project alongside the regex `search` tool — which is deferred only because it
+// brings an index to build and invalidate (issue #27).
 type EmbeddingProvider interface {
 	Embed(ctx context.Context, req EmbeddingRequest) (EmbeddingResponse, error)
 }
