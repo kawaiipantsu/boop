@@ -53,6 +53,7 @@ func BuildTools(cfg *config.Config, deps ToolDeps) (*tools.Registry, error) {
 	reg.Register(tools.NewAttachTool(deps.Workspace))
 	reg.Register(tools.NewMemoryTool(deps.Workspace))
 	reg.Register(tools.NewTodoTool(nil))
+	reg.Register(tools.NewAskTool(nil))
 
 	// Command execution.
 	run := tools.NewRunTool(deps.Executor, deps.Workspace)
