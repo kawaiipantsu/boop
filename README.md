@@ -296,6 +296,7 @@ Models never get a shell. Every action goes through a registered, schema-driven 
 | `apply_patch` — unified diff edit | `build` — detect & run build | |
 | `list` `find` `search` | `lint` — detect & run linter | |
 | `attach` — inspect docs/images | `format` — detect & format code | |
+| `memory` — project Boop.md memory | | |
 
 </div>
 

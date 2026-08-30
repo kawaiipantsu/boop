@@ -55,9 +55,10 @@ var BuiltinToolNames = map[string]bool{
 	"format":    true,
 	"git":       true,
 	"http":      true,
-	"fetch":     true,
-	"websearch": true,
-	"attach":    true,
+	"fetch":       true,
+	"websearch":   true,
+	"attach":      true,
+	"memory":      true,
 }
 
 // validateTools validates user-declared custom tools in config.
