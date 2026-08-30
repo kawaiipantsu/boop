@@ -58,6 +58,10 @@ real release.
 
 ## 3. Creating the GitHub release
 
+When pushing a `v*` tag to GitHub, the `.github/workflows/release.yml` workflow automatically builds all platform distribution archives, generates `checksums.txt`, extracts the corresponding section from `CHANGELOG.md`, and creates the GitHub Release (marked as pre-release when the tag contains a hyphen like `-rc.1`).
+
+Alternatively, releases can still be created manually with the GitHub CLI:
+
 ```bash
 gh release create v0.1.0-rc.1 \
   --title "Boop v0.1.0-rc.1" \
