@@ -60,6 +60,12 @@ Changes to these files can affect production; treat them with deliberate intent.
 
 ## Decisions
 
+- `boop status` builds the runtime with an in-memory session store
+  (`DatabasePath: ":memory:"`) and logging discarded (`LogPath: ":discard"`), so
+  a health check creates no files. Provider health and capability probes share a
+  5s timeout. An unreachable active provider is reported as an error from
+  `runStatus` so the process exits non-zero (§54).
+
 ## Current Work
 
 ## Known Problems

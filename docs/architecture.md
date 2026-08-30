@@ -29,7 +29,7 @@ disagrees with the code, the code is right — say so in an issue.
 - `internal/project` — root discovery, `Boop.md`, the `/prep` sequence
 - `internal/stats`, `internal/webclient`, `internal/version`
 - `internal/app` — the runtime assembly, the event bus and the tool loop
-- `cmd/boop` — `boop version` and plain CLI mode (`boop --no-tui`)
+- `cmd/boop` — `boop version`, `boop status` and plain CLI mode (`boop --no-tui`)
 
 **Under construction at the time of writing.** These packages exist in the tree
 in varying states of completeness and are not yet wired into `dispatch` in

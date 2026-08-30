@@ -251,6 +251,7 @@ boop                          # 🖥️  interactive TUI
 boop "<prompt>"               # 💬  prompt, then stay interactive
 boop --no-tui --prompt "..."  # 🤖  plain CLI, for scripts and CI
 boop --web --port 8585        # 🌐  local WebUI
+boop status                   # 🩺  provider health and model capabilities
 boop version                  # ℹ️   build metadata
 ```
 

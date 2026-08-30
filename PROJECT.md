@@ -2239,6 +2239,18 @@ Status should include safe operational metadata:
 
 Do not expose secrets.
 
+The same information is available from the command line without starting a
+session:
+
+```text
+boop status          # human-readable
+boop status --json    # machine-readable
+```
+
+`boop status` probes the active provider and exits non-zero when it is
+unreachable, so it composes in a script or a health check. It builds no session
+store and writes no logs.
+
 ---
 
 # 55. Configuration UX

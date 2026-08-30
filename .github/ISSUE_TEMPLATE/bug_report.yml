@@ -18,15 +18,26 @@ body:
   - type: textarea
     id: version
     attributes:
-      label: boop version
-      description: Paste the complete output of `boop version`. All of it — the Go version and platform matter.
+      label: boop version and status
+      description: |
+        Paste the complete output of `boop version` and of `boop status`. All of
+        it — the Go version, platform and provider health all matter. Remove
+        nothing; `boop status` prints no secrets.
       render: text
       placeholder: |
+        $ boop version
         boop v0.1.0-dev
         commit: b7829b9
         built:  2026-08-29T16:42:47Z
         go:     go1.25.0
         os/arch: linux/amd64
+
+        $ boop status
+        boop v0.1.0-dev  ·  /home/me/project
+        provider  ollama      http://127.0.0.1:11434    healthy (12ms)
+        model     qwen2.5:7b  tools ✓  vision ✗  reasoning ✗  32768 ctx
+        mode      confirm     agents off (max 5)   network off
+        session   none
     validations:
       required: true
 
