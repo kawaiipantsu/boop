@@ -332,3 +332,37 @@ func TestStaticBundleRouting(t *testing.T) {
 		t.Errorf("Content-Type = %q, want JSON", ct)
 	}
 }
+
+func TestBasePathRouting(t *testing.T) {
+	srv := newTestServer(t, func(opts *Options) {
+		opts.Config.Web.BasePath = "/boop"
+	})
+
+	// /boop/api/status should resolve to status endpoint
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/boop/api/status", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /boop/api/status = %d, want 200", rec.Code)
+	}
+
+	// /boop should redirect to /boop/
+	rec = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/boop", nil))
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("GET /boop = %d, want 301 redirect", rec.Code)
+	}
+}
+
+func TestForwardedPrefixRouting(t *testing.T) {
+	srv := newTestServer(t, func(opts *Options) {
+		opts.Config.Web.TrustedProxyHeaders = true
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/proxy-prefix/api/status", nil)
+	req.Header.Set("X-Forwarded-Prefix", "/proxy-prefix")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET with X-Forwarded-Prefix = %d, want 200", rec.Code)
+	}
+}

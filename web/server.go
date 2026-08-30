@@ -507,11 +507,46 @@ func (s *Server) routes() http.Handler {
 		writeError(w, http.StatusNotFound, codeNotFound, "no such API endpoint: "+r.URL.Path)
 	}))
 
+	base := strings.TrimRight(s.web.BasePath, "/")
+	if base != "" && !strings.HasPrefix(base, "/") {
+		base = "/" + base
+	}
+
 	// The WebSocket runs its own, stricter origin and token checks because a
 	// browser cannot set an Authorization header on an upgrade.
 	mux.Handle(EventsPath, s.recovered(s.handleEvents))
-	mux.Handle("/", s.recovered(newStaticHandler().ServeHTTP))
-	return mux
+	mux.Handle("/", s.recovered(newStaticHandler(base).ServeHTTP))
+
+	var rootHandler http.Handler = mux
+
+	if base != "" {
+		prefixMux := http.NewServeMux()
+		prefixMux.Handle(base+"/", http.StripPrefix(base, mux))
+		prefixMux.Handle(base, http.RedirectHandler(base+"/", http.StatusMovedPermanently))
+		rootHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, base) {
+				prefixMux.ServeHTTP(w, r)
+			} else {
+				mux.ServeHTTP(w, r)
+			}
+		})
+	}
+
+	if s.web.TrustedProxyHeaders {
+		inner := rootHandler
+		rootHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if fwdPrefix := r.Header.Get("X-Forwarded-Prefix"); fwdPrefix != "" && base == "" {
+				fwdPrefix = "/" + strings.Trim(fwdPrefix, "/")
+				if strings.HasPrefix(r.URL.Path, fwdPrefix) {
+					http.StripPrefix(fwdPrefix, mux).ServeHTTP(w, r)
+					return
+				}
+			}
+			inner.ServeHTTP(w, r)
+		})
+	}
+
+	return rootHandler
 }
 
 // secured wraps an API handler with panic recovery, origin enforcement, CORS

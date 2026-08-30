@@ -2,6 +2,7 @@ package web
 
 import (
 	"embed"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"path"
@@ -54,7 +55,7 @@ func bundleFS() (fs.FS, bool) {
 // client-side routes survive a reload. Without one it serves a page that
 // explains how to build the frontend, because a blank 404 at the root of a
 // server the user just started is an unhelpful way to report a missing asset.
-func newStaticHandler() http.Handler {
+func newStaticHandler(basePath string) http.Handler {
 	assets, ok := bundleFS()
 	if !ok {
 		return placeholderHandler()
@@ -68,11 +69,11 @@ func newStaticHandler() http.Handler {
 		}
 		name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 		if name == "" || name == "." {
-			serveIndex(w, r, assets)
+			serveIndex(w, r, assets, basePath)
 			return
 		}
 		if _, err := fs.Stat(assets, name); err != nil {
-			serveIndex(w, r, assets)
+			serveIndex(w, r, assets, basePath)
 			return
 		}
 		// Bundlers emit content-hashed filenames under assets/, so those are
@@ -87,12 +88,19 @@ func newStaticHandler() http.Handler {
 	})
 }
 
-// serveIndex writes the SPA entry document with revalidation forced.
-func serveIndex(w http.ResponseWriter, r *http.Request, assets fs.FS) {
+// serveIndex writes the SPA entry document with revalidation forced and injects <base href="..."> if base is set.
+func serveIndex(w http.ResponseWriter, r *http.Request, assets fs.FS, basePath string) {
 	data, err := fs.ReadFile(assets, "index.html")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, codeInternal, "the embedded WebUI bundle is unreadable")
 		return
+	}
+	if basePath != "" {
+		if !strings.HasSuffix(basePath, "/") {
+			basePath += "/"
+		}
+		baseTag := fmt.Sprintf("<head><base href=\"%s\">", basePath)
+		data = []byte(strings.Replace(string(data), "<head>", baseTag, 1))
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")

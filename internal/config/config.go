@@ -90,6 +90,8 @@ type WebConfig struct {
 	Listen  string     `yaml:"listen" json:"listen"`
 	Port    int        `yaml:"port" json:"port"`
 	Auth    AuthConfig `yaml:"auth" json:"auth"`
+	// BasePath is the URL prefix to mount under behind a reverse proxy (e.g. /boop).
+	BasePath string `yaml:"base_path,omitempty" json:"base_path,omitempty"`
 	// AllowedOrigins is required when binding beyond loopback.
 	AllowedOrigins []string `yaml:"allowed_origins,omitempty" json:"allowed_origins,omitempty"`
 	// TrustedProxyHeaders enables proxy-aware client address resolution.
