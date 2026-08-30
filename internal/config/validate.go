@@ -41,10 +41,11 @@ func (c *Config) Validate() (warnings []string, err error) {
 
 // BuiltinToolNames lists the standard built-in tool names that cannot be shadowed.
 var BuiltinToolNames = map[string]bool{
-	"read":      true,
-	"write":     true,
-	"edit":      true,
-	"list":      true,
+	"read":        true,
+	"write":       true,
+	"edit":        true,
+	"apply_patch": true,
+	"list":        true,
 	"find":      true,
 	"search":    true,
 	"run":       true,

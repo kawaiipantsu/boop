@@ -293,9 +293,9 @@ Models never get a shell. Every action goes through a registered, schema-driven 
 | `read` — read with offset/limit | `run` — execute a command | `http` — raw HTTP request |
 | `write` — atomic write | `git` — allowlisted subcommands | `fetch` — page → readable text |
 | `edit` — exact replacement | `test` — detect & run tests | `websearch` — DuckDuckGo |
-| `list` `find` `search` | `build` — detect & run build | |
-| `attach` — inspect docs/images | `lint` — detect & run linter | |
-| | `format` — detect & format code | |
+| `apply_patch` — unified diff edit | `build` — detect & run build | |
+| `list` `find` `search` | `lint` — detect & run linter | |
+| `attach` — inspect docs/images | `format` — detect & format code | |
 
 </div>
 

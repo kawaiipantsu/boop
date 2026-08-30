@@ -43,6 +43,7 @@ func BuildTools(cfg *config.Config, deps ToolDeps) (*tools.Registry, error) {
 	reg.Register(tools.NewReadTool(deps.Workspace))
 	reg.Register(tools.NewWriteTool(deps.Workspace))
 	reg.Register(tools.NewEditTool(deps.Workspace))
+	reg.Register(tools.NewApplyPatchTool(deps.Workspace))
 	reg.Register(tools.NewListTool(deps.Workspace))
 	reg.Register(tools.NewFindTool(deps.Workspace))
 	reg.Register(tools.NewSearchTool(deps.Workspace))
