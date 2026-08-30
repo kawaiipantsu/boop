@@ -133,7 +133,7 @@ Remote is `git@github.com:kawaiipantsu/boop.git`. Both branches are pushed.
 
 ## Current state
 
-Built and tested: config, execution, permissions, tools (13), all seven providers plus the
+Built and tested: config, execution, permissions, tools (16), all seven providers plus the
 router, session, store, project memory, stats, webclient, the app runtime and the tool loop,
 and plain CLI mode (`boop --no-tui`).
 

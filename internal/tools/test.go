@@ -51,11 +51,15 @@ func NewTestTool(executor execution.Executor, ws *Workspace) *TestTool {
 	}
 }
 
-// execTaskArgs are the decoded arguments shared by the test and build tools.
+// execTaskArgs are the decoded arguments shared by the task tools (test,
+// build, lint and format).
 type execTaskArgs struct {
 	Command        string `json:"command,omitempty"`
 	WorkingDir     string `json:"working_dir,omitempty"`
 	TimeoutSeconds int    `json:"timeout_seconds,omitempty"`
+	// Check requests a non-mutating run. It is meaningful only for the format
+	// task, where "is this formatted" is a read and "format it" is a write.
+	Check bool `json:"check,omitempty"`
 }
 
 // Name implements Tool.
@@ -96,12 +100,14 @@ func (t *TestTool) Execute(ctx context.Context, call Call) (Result, error) {
 	}, call)
 }
 
-// execTaskKind distinguishes the two detected project tasks.
+// execTaskKind distinguishes the detected project tasks.
 type execTaskKind string
 
 const (
-	execTaskTest  execTaskKind = "test"
-	execTaskBuild execTaskKind = "build"
+	execTaskTest   execTaskKind = "test"
+	execTaskBuild  execTaskKind = "build"
+	execTaskLint   execTaskKind = "lint"
+	execTaskFormat execTaskKind = "format"
 )
 
 // execDetection is a project command chosen by detection.
@@ -126,39 +132,59 @@ type execTaskConfig struct {
 	maxOutputLines int
 }
 
-// execTaskSchema is the shared JSON Schema of the test and build tools.
+// execTaskSchema is the shared JSON Schema of the task tools. The format tool
+// additionally exposes a `check` flag, since checking and rewriting are
+// different questions with different permission implications.
 func execTaskSchema(kind string) map[string]any {
-	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"command": map[string]any{
-				"type": "string",
-				"description": "Override the detected " + kind +
-					" command. Omit it to use the project's own command.",
-			},
-			"working_dir": map[string]any{
-				"type":        "string",
-				"description": "Directory to run in, relative to the workspace root. Defaults to the root.",
-			},
-			"timeout_seconds": map[string]any{
-				"type":        "integer",
-				"minimum":     1,
-				"description": "Maximum run time in seconds.",
-			},
+	props := map[string]any{
+		"command": map[string]any{
+			"type": "string",
+			"description": "Override the detected " + kind +
+				" command. Omit it to use the project's own command.",
+		},
+		"working_dir": map[string]any{
+			"type":        "string",
+			"description": "Directory to run in, relative to the workspace root. Defaults to the root.",
+		},
+		"timeout_seconds": map[string]any{
+			"type":        "integer",
+			"minimum":     1,
+			"description": "Maximum run time in seconds.",
 		},
 	}
+	if kind == "format" {
+		props["check"] = map[string]any{
+			"type": "boolean",
+			"description": "Report whether the code is formatted without changing any files. " +
+				"This is a read-only check; omit it or pass false to actually format.",
+		}
+	}
+	return map[string]any{"type": "object", "properties": props}
 }
 
 // execTaskPermission classifies a detected or overridden task command.
+//
+// A command supplied by the caller is always run through the risk classifier —
+// the tool has no idea what it is. A command the tool detected for itself is
+// known: a detected lint or format check only reads the tree, and a detected
+// format run rewrites files in place, so those are filed as filesystem.read and
+// filesystem.write rather than sent through shell classification. test and
+// build stay classified because their commands do arbitrary work.
 func execTaskPermission(tool string, ws *Workspace, kind execTaskKind, args execTaskArgs, classify RiskClassifier) (permissions.Action, error) {
 	dir, err := execResolveWorkspaceDir(ws, args.WorkingDir)
 	if err != nil {
 		dir = args.WorkingDir
 	}
+	if classify == nil {
+		classify = DefaultRiskClassifier
+	}
+	checkOnly := args.Check && kind == execTaskFormat
+
 	command := strings.TrimSpace(args.Command)
+	explicit := command != ""
 	origin := "explicit"
-	if command == "" {
-		det, ok := execDetectTask(dir, kind)
+	if !explicit {
+		det, ok := execDetectTask(dir, kind, checkOnly)
 		if !ok {
 			// Nothing detected: the call will fail in Execute, but it must
 			// still classify, so treat it as an ordinary shell action.
@@ -172,18 +198,41 @@ func execTaskPermission(tool string, ws *Workspace, kind execTaskKind, args exec
 		}
 		command, origin = det.Command, det.Ecosystem
 	}
-	if classify == nil {
-		classify = DefaultRiskClassifier
+
+	summary := fmt.Sprintf("Run %s (%s) in %s: %s", kind, origin, dir, execSummarize(command, 100))
+	if checkOnly {
+		summary = fmt.Sprintf("Check %s (%s) in %s: %s", kind, origin, dir, execSummarize(command, 100))
 	}
-	// A project's own test or build command is still an arbitrary command
-	// line, so it is classified like any other rather than trusted for
-	// being called "test".
+
+	if !explicit && (kind == execTaskLint || (kind == execTaskFormat && checkOnly)) {
+		return permissions.Action{
+			Category: permissions.CatFilesystemRead,
+			Risk:     permissions.RiskLow,
+			Tool:     tool,
+			Summary:  summary,
+			Detail:   command,
+			Paths:    []string{dir},
+		}, nil
+	}
+	if !explicit && kind == execTaskFormat {
+		return permissions.Action{
+			Category: permissions.CatFilesystemWrite,
+			Risk:     permissions.RiskMedium,
+			Tool:     tool,
+			Summary:  summary,
+			Detail:   command,
+			Paths:    []string{dir},
+		}, nil
+	}
+
+	// Explicit override, or test/build: an arbitrary command line, classified
+	// like any other rather than trusted for the tool it was passed to.
 	cls := classify(command)
 	return permissions.Action{
 		Category:   cls.Category,
 		Risk:       cls.Risk,
 		Tool:       tool,
-		Summary:    fmt.Sprintf("Run %s (%s) in %s: %s", kind, origin, dir, execSummarize(command, 100)),
+		Summary:    summary,
 		Detail:     command,
 		Paths:      []string{dir},
 		Production: cls.Production,
@@ -201,10 +250,11 @@ func execRunTask(ctx context.Context, cfg execTaskConfig, call Call) (Result, er
 	if err != nil {
 		return Errorf(call, "%s: %v", cfg.kind, err), nil
 	}
+	checkOnly := args.Check && cfg.kind == execTaskFormat
 
 	det := execDetection{Ecosystem: "explicit", Command: strings.TrimSpace(args.Command), Reason: "command supplied by the caller"}
 	if det.Command == "" {
-		found, ok := execDetectTask(dir, cfg.kind)
+		found, ok := execDetectTask(dir, cfg.kind, checkOnly)
 		if !ok {
 			return Errorf(call, "%s: no %s command could be detected in %s.\n"+
 				"Looked for: a Makefile %s target, go.mod, package.json scripts, Cargo.toml, and Python project markers.\n"+
@@ -232,25 +282,44 @@ func execRunTask(ctx context.Context, cfg execTaskConfig, call Call) (Result, er
 		}, nil
 	}
 
+	// Some formatters report "would reformat" on stdout and still exit 0
+	// (`gofmt -l`, notably). In check mode a non-empty listing means the tree
+	// is not formatted, which the caller needs to see as a failure.
+	unformatted := checkOnly && res.Success() && strings.TrimSpace(res.Stdout) != ""
+
 	maxLines := cfg.maxOutputLines
 	if maxLines <= 0 {
 		maxLines = DefaultMaxOutputLines
 	}
+	content := execFormatTaskResult(cfg.kind, det, dir, res, maxLines)
+	if unformatted {
+		content = "format: NEEDS FORMATTING\n" +
+			"runner: " + det.Ecosystem + " (" + det.Reason + ")\n" +
+			"the following files are not formatted:\n" +
+			execTrimLines(res.Stdout, maxLines) +
+			"\nrun format without check to fix them"
+	}
 	return Result{
 		CallID:   call.ID,
 		Tool:     call.Name,
-		Content:  execFormatTaskResult(cfg.kind, det, dir, res, maxLines),
+		Content:  content,
 		Data:     res,
-		IsError:  !res.Success(),
+		IsError:  !res.Success() || unformatted,
 		Duration: time.Since(started),
 	}, nil
 }
 
 func execTaskParticiple(kind execTaskKind) string {
-	if kind == execTaskBuild {
+	switch kind {
+	case execTaskBuild:
 		return "built"
+	case execTaskLint:
+		return "linted"
+	case execTaskFormat:
+		return "formatted"
+	default:
+		return "tested"
 	}
-	return "tested"
 }
 
 // execFormatTaskResult renders a task outcome, leading with the verdict and
@@ -272,54 +341,118 @@ func execFormatTaskResult(kind execTaskKind, det execDetection, dir string, res 
 // Make wins when it defines the target: a Makefile target is the project's own
 // declared entry point and usually wraps flags, code generation or environment
 // the raw toolchain command would skip. Otherwise the first matching ecosystem
-// marker in a fixed order is used, so detection is deterministic.
-func execDetectTask(root string, kind execTaskKind) (execDetection, bool) {
+// marker in a fixed order is used, so detection is deterministic. checkOnly
+// selects the non-mutating form and applies only to the format task.
+func execDetectTask(root string, kind execTaskKind, checkOnly bool) (execDetection, bool) {
 	if root == "" {
 		return execDetection{}, false
 	}
-	target := string(kind)
 	if path, ok := execFindMakefile(root); ok {
-		targets := execMakeTargets(path)
-		if targets[target] {
-			return execDetection{
-				Ecosystem: "make",
-				Command:   "make " + target,
-				Reason:    filepath.Base(path) + " defines a " + target + " target",
-			}, true
+		if det, ok := execMakeTaskTarget(filepath.Base(path), execMakeTargets(path), kind, checkOnly); ok {
+			return det, true
 		}
 	}
 
 	if execFileExists(filepath.Join(root, "go.mod")) {
-		if kind == execTaskBuild {
-			return execDetection{Ecosystem: "go", Command: "go build ./...", Reason: "go.mod present"}, true
-		}
-		return execDetection{Ecosystem: "go", Command: "go test ./...", Reason: "go.mod present"}, true
+		return execGoTask(root, kind, checkOnly), true
 	}
 
-	if det, ok := execDetectNode(root, kind); ok {
+	if det, ok := execDetectNode(root, kind, checkOnly); ok {
 		return det, true
 	}
 
 	if execFileExists(filepath.Join(root, "Cargo.toml")) {
-		if kind == execTaskBuild {
-			return execDetection{Ecosystem: "cargo", Command: "cargo build", Reason: "Cargo.toml present"}, true
-		}
-		return execDetection{Ecosystem: "cargo", Command: "cargo test", Reason: "Cargo.toml present"}, true
+		return execCargoTask(kind, checkOnly), true
 	}
 
-	if det, ok := execDetectPython(root, kind); ok {
+	if det, ok := execDetectPython(root, kind, checkOnly); ok {
+		return det, true
+	}
+
+	if det, ok := execDetectPHP(root, kind, checkOnly); ok {
 		return det, true
 	}
 
 	return execDetection{}, false
 }
 
+// execMakeTargetNames lists the Makefile target names that stand for a task
+// kind, most conventional first. A format check has its own names because a
+// bare `format` target usually rewrites files.
+func execMakeTargetNames(kind execTaskKind, checkOnly bool) []string {
+	switch {
+	case kind == execTaskFormat && checkOnly:
+		return []string{"format-check", "fmt-check", "check-format", "check-fmt"}
+	case kind == execTaskFormat:
+		return []string{"format", "fmt"}
+	case kind == execTaskLint:
+		return []string{"lint", "vet"}
+	default:
+		return []string{string(kind)}
+	}
+}
+
+// execMakeTaskTarget returns the first declared Make target that fits the task.
+func execMakeTaskTarget(makefile string, targets map[string]bool, kind execTaskKind, checkOnly bool) (execDetection, bool) {
+	for _, name := range execMakeTargetNames(kind, checkOnly) {
+		if targets[name] {
+			return execDetection{
+				Ecosystem: "make",
+				Command:   "make " + name,
+				Reason:    makefile + " defines a " + name + " target",
+			}, true
+		}
+	}
+	return execDetection{}, false
+}
+
+// execGoTask maps a task kind to the Go toolchain command. Go always has one.
+func execGoTask(root string, kind execTaskKind, checkOnly bool) execDetection {
+	switch kind {
+	case execTaskBuild:
+		return execDetection{Ecosystem: "go", Command: "go build ./...", Reason: "go.mod present"}
+	case execTaskLint:
+		for _, f := range []string{".golangci.yml", ".golangci.yaml", ".golangci.toml", ".golangci.json"} {
+			if execFileExists(filepath.Join(root, f)) {
+				return execDetection{Ecosystem: "golangci-lint", Command: "golangci-lint run", Reason: f + " present"}
+			}
+		}
+		return execDetection{Ecosystem: "go", Command: "go vet ./...", Reason: "go.mod present, no golangci-lint config"}
+	case execTaskFormat:
+		if checkOnly {
+			return execDetection{Ecosystem: "gofmt", Command: "gofmt -l .", Reason: "go.mod present"}
+		}
+		return execDetection{Ecosystem: "gofmt", Command: "gofmt -w .", Reason: "go.mod present"}
+	default:
+		return execDetection{Ecosystem: "go", Command: "go test ./...", Reason: "go.mod present"}
+	}
+}
+
+// execCargoTask maps a task kind to the Cargo command. Cargo always has one.
+func execCargoTask(kind execTaskKind, checkOnly bool) execDetection {
+	switch kind {
+	case execTaskBuild:
+		return execDetection{Ecosystem: "cargo", Command: "cargo build", Reason: "Cargo.toml present"}
+	case execTaskLint:
+		return execDetection{Ecosystem: "cargo", Command: "cargo clippy", Reason: "Cargo.toml present"}
+	case execTaskFormat:
+		if checkOnly {
+			return execDetection{Ecosystem: "cargo", Command: "cargo fmt --check", Reason: "Cargo.toml present"}
+		}
+		return execDetection{Ecosystem: "cargo", Command: "cargo fmt", Reason: "Cargo.toml present"}
+	default:
+		return execDetection{Ecosystem: "cargo", Command: "cargo test", Reason: "Cargo.toml present"}
+	}
+}
+
 // execPythonMarkers are files that identify a Python project.
 var execPythonMarkers = []string{"pyproject.toml", "setup.py", "setup.cfg", "pytest.ini", "tox.ini", "requirements.txt"}
 
 // execDetectPython recognises a Python project. Python has no universal build
-// step, so only pyproject.toml offers one.
-func execDetectPython(root string, kind execTaskKind) (execDetection, bool) {
+// step, so only pyproject.toml offers one; lint and format are reported only
+// when a tool is actually configured, since guessing between ruff, black and
+// flake8 is worse than saying nothing.
+func execDetectPython(root string, kind execTaskKind, checkOnly bool) (execDetection, bool) {
 	marker := ""
 	for _, name := range execPythonMarkers {
 		if execFileExists(filepath.Join(root, name)) {
@@ -330,43 +463,102 @@ func execDetectPython(root string, kind execTaskKind) (execDetection, bool) {
 	if marker == "" {
 		return execDetection{}, false
 	}
-	if kind == execTaskBuild {
+	pyproj := execReadFile(filepath.Join(root, "pyproject.toml"))
+
+	switch kind {
+	case execTaskBuild:
 		if marker == "pyproject.toml" {
 			return execDetection{Ecosystem: "python", Command: "python -m build", Reason: "pyproject.toml present"}, true
 		}
 		return execDetection{}, false
+	case execTaskLint:
+		if strings.Contains(pyproj, "[tool.ruff") {
+			return execDetection{Ecosystem: "ruff", Command: "ruff check .", Reason: "pyproject.toml configures ruff"}, true
+		}
+		if execFileExists(filepath.Join(root, ".flake8")) ||
+			strings.Contains(execReadFile(filepath.Join(root, "setup.cfg")), "[flake8]") ||
+			strings.Contains(pyproj, "[tool.flake8") {
+			return execDetection{Ecosystem: "flake8", Command: "flake8", Reason: "flake8 configuration present"}, true
+		}
+		return execDetection{}, false
+	case execTaskFormat:
+		if strings.Contains(pyproj, "[tool.ruff") {
+			cmd := "ruff format ."
+			if checkOnly {
+				cmd = "ruff format --check ."
+			}
+			return execDetection{Ecosystem: "ruff", Command: cmd, Reason: "pyproject.toml configures ruff"}, true
+		}
+		if strings.Contains(pyproj, "[tool.black") {
+			cmd := "black ."
+			if checkOnly {
+				cmd = "black --check ."
+			}
+			return execDetection{Ecosystem: "black", Command: cmd, Reason: "pyproject.toml configures black"}, true
+		}
+		return execDetection{}, false
+	default:
+		return execDetection{Ecosystem: "python", Command: "pytest", Reason: marker + " present"}, true
 	}
-	return execDetection{Ecosystem: "python", Command: "pytest", Reason: marker + " present"}, true
 }
 
 // execDetectNode reads package.json and only reports a command the project
-// actually defines, so the tool never runs a script that does not exist.
-func execDetectNode(root string, kind execTaskKind) (execDetection, bool) {
+// actually defines, so the tool never runs a script that does not exist. For a
+// format check with no declared check script it falls back to Prettier's own
+// --check when Prettier is configured.
+func execDetectNode(root string, kind execTaskKind, checkOnly bool) (execDetection, bool) {
 	path := filepath.Join(root, "package.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return execDetection{}, false
 	}
 	var pkg struct {
-		Scripts map[string]string `json:"scripts"`
+		Scripts         map[string]string `json:"scripts"`
+		DevDependencies map[string]string `json:"devDependencies"`
+		Dependencies    map[string]string `json:"dependencies"`
 	}
 	if err := json.Unmarshal(data, &pkg); err != nil {
 		return execDetection{}, false
 	}
-	script := string(kind)
-	if _, ok := pkg.Scripts[script]; !ok {
+	manager := execNodePackageManager(root)
+	runScript := func(name string) execDetection {
+		command := manager + " run " + name
+		if name == "test" && manager == "npm" {
+			command = "npm test"
+		}
+		return execDetection{Ecosystem: manager, Command: command, Reason: "package.json defines a " + name + " script"}
+	}
+
+	if kind == execTaskFormat && checkOnly {
+		for _, name := range []string{"format:check", "fmt:check", "format-check"} {
+			if _, ok := pkg.Scripts[name]; ok {
+				return runScript(name), true
+			}
+		}
+		if _, dev := pkg.DevDependencies["prettier"]; dev || hasKey(pkg.Dependencies, "prettier") || execNodePrettierConfig(root) {
+			return execDetection{
+				Ecosystem: manager,
+				Command:   execNodeExec(manager, "prettier --check ."),
+				Reason:    "Prettier configured; no format:check script",
+			}, true
+		}
 		return execDetection{}, false
 	}
-	manager := execNodePackageManager(root)
-	command := manager + " run " + script
-	if script == "test" && manager == "npm" {
-		command = "npm test"
+
+	if _, ok := pkg.Scripts[string(kind)]; ok {
+		return runScript(string(kind)), true
 	}
-	return execDetection{
-		Ecosystem: manager,
-		Command:   command,
-		Reason:    "package.json defines a " + script + " script",
-	}, true
+
+	// eslint with a flat or legacy config but no lint script is still a linter
+	// the project clearly opted into.
+	if kind == execTaskLint && execNodeESLintConfig(root) {
+		return execDetection{
+			Ecosystem: manager,
+			Command:   execNodeExec(manager, "eslint ."),
+			Reason:    "ESLint configuration present; no lint script",
+		}, true
+	}
+	return execDetection{}, false
 }
 
 // execNodePackageManager infers the package manager from the lockfile, so the

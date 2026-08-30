@@ -93,6 +93,8 @@ Model-initiated actions go through registered Boop tools such as:
 - `git`
 - `test`
 - `build`
+- `lint`
+- `format`
 - `http`
 
 ## 2.5 Explicit permissions
