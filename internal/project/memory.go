@@ -157,21 +157,21 @@ func (m *Memory) Save() error {
 		return fmt.Errorf("create %q: %w", tmp, err)
 	}
 	if _, err := f.Write(m.doc.Render()); err != nil {
-		f.Close()
-		os.Remove(tmp)
+		_ = f.Close()
+		_ = os.Remove(tmp)
 		return fmt.Errorf("write %q: %w", tmp, err)
 	}
 	if err := f.Sync(); err != nil {
-		f.Close()
-		os.Remove(tmp)
+		_ = f.Close()
+		_ = os.Remove(tmp)
 		return fmt.Errorf("sync %q: %w", tmp, err)
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return fmt.Errorf("close %q: %w", tmp, err)
 	}
 	if err := os.Rename(tmp, m.path); err != nil {
-		os.Remove(tmp)
+		_ = os.Remove(tmp)
 		return fmt.Errorf("replace %q: %w", m.path, err)
 	}
 	m.created = false

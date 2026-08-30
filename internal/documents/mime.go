@@ -270,7 +270,7 @@ func DetectFile(path string) (TypeInfo, error) {
 	if err != nil {
 		return TypeInfo{}, fmt.Errorf("documents: open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	head := make([]byte, SniffLen)
 	n, err := f.Read(head)

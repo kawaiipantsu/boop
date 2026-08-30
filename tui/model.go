@@ -557,7 +557,7 @@ func (m *Model) finishTurn(msg turnDoneMsg) tea.Cmd {
 		m.turnCancel = nil
 	}
 	if m.approver != nil {
-		m.approver.SetTurnContext(nil)
+		m.approver.ResetTurnContext()
 	}
 
 	// A tool that failed before the runtime could report completion would

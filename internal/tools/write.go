@@ -166,14 +166,14 @@ func fsAtomicWrite(abs string, data []byte, perm os.FileMode) error {
 		return fmt.Errorf("create temporary file: %w", err)
 	}
 	name := tmp.Name()
-	defer os.Remove(name) // no-op once the rename has succeeded
+	defer func() { _ = os.Remove(name) }() // no-op once the rename has succeeded
 
 	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return err
 	}
 	if err := tmp.Sync(); err != nil {
-		tmp.Close()
+		_ = tmp.Close()
 		return err
 	}
 	if err := tmp.Close(); err != nil {

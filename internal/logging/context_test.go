@@ -42,6 +42,10 @@ func TestContextRoundTrip(t *testing.T) {
 	}
 }
 
+// unrelatedKey is a context key that is not logging's, used to prove
+// FromContext ignores a value stored under someone else's key.
+type unrelatedKey struct{}
+
 func TestFromContextFallsBackToDefault(t *testing.T) {
 	tests := []struct {
 		name string
@@ -49,7 +53,7 @@ func TestFromContextFallsBackToDefault(t *testing.T) {
 	}{
 		{name: "background", ctx: context.Background()},
 		{name: "nil", ctx: nil},
-		{name: "wrong type stored", ctx: context.WithValue(context.Background(), struct{}{}, "not a logger")},
+		{name: "wrong type stored", ctx: context.WithValue(context.Background(), unrelatedKey{}, "not a logger")},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

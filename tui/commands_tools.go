@@ -206,7 +206,7 @@ func (m *Model) finishToolRun(msg toolDoneMsg) tea.Cmd {
 		m.turnCancel = nil
 	}
 	if m.approver != nil {
-		m.approver.SetTurnContext(nil)
+		m.approver.ResetTurnContext()
 	}
 
 	state := ToolOK

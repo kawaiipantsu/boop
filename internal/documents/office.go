@@ -238,7 +238,7 @@ func (z *zipSource) read(name string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: opening %s: %v", ErrNotOffice, name, err)
 	}
-	defer rc.Close()
+	defer func() { _ = rc.Close() }()
 
 	var buf bytes.Buffer
 	// Read one byte past the budget so an over-long entry is detected rather

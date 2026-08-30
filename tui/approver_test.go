@@ -130,13 +130,13 @@ func TestApproverFailsClosedWhenTheBrokerCloses(t *testing.T) {
 	}
 }
 
-func TestApproverSetTurnContextNilRestoresBackground(t *testing.T) {
+func TestApproverResetTurnContextRestoresBackground(t *testing.T) {
 	broker := permissions.NewBroker()
 	approver := NewApprover(broker)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	approver.SetTurnContext(ctx)
-	approver.SetTurnContext(nil)
+	approver.ResetTurnContext()
 
 	result := answer(approver, permissions.Action{Tool: "run", Risk: permissions.RiskLow})
 	pending := waitPending(t, broker)

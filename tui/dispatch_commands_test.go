@@ -275,11 +275,94 @@ func TestConfigNamesCredentialsButNeverPrintsThem(t *testing.T) {
 	}
 }
 
-func TestConfigCommandRejectsArguments(t *testing.T) {
+func TestConfigCommandRejectsUnknownField(t *testing.T) {
 	m := newAttachedModel(t, nil)
 	runCommand(t, m, "/config set provider ollama")
 	if got := transcriptText(m); !strings.Contains(got, "usage: /config") {
-		t.Fatalf("/config accepted arguments: %q", got)
+		t.Fatalf("/config accepted an unknown field: %q", got)
+	}
+}
+
+func TestConfigModeWritesFileAndMovesTheEvaluator(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, func(c *config.Config) { c.Execution.Mode = permissions.ModeConfirm })
+
+	runCommand(t, m, "/config mode auto")
+
+	if got := m.app.Config.Execution.Mode; got != permissions.ModeAuto {
+		t.Fatalf("running config mode = %q, want auto", got)
+	}
+	if got := m.app.Evaluator.Policy().Mode; got != permissions.ModeAuto {
+		t.Fatalf("evaluator mode = %q, want auto", got)
+	}
+	disk, err := config.LoadFrom(filepath.Join(dir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if disk.Execution.Mode != permissions.ModeAuto {
+		t.Fatalf("persisted mode = %q, want auto", disk.Execution.Mode)
+	}
+	if txt := transcriptText(m); !strings.Contains(txt, "saved to") {
+		t.Fatalf("no save confirmation in:\n%s", txt)
+	}
+}
+
+func TestConfigModeRejectsGarbage(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, nil)
+	runCommand(t, m, "/config mode sideways")
+	if got := transcriptText(m); !strings.Contains(got, "usage: /config mode") {
+		t.Fatalf("expected usage, got:\n%s", got)
+	}
+}
+
+func TestConfigWebPortPersists(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, nil)
+
+	runCommand(t, m, "/config web port 8585")
+
+	if m.app.Config.Web.Port != 8585 {
+		t.Fatalf("running web.port = %d, want 8585", m.app.Config.Web.Port)
+	}
+	disk, err := config.LoadFrom(filepath.Join(dir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if disk.Web.Port != 8585 {
+		t.Fatalf("persisted web.port = %d, want 8585", disk.Web.Port)
+	}
+}
+
+func TestConfigWebPortRejectsOutOfRange(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, nil)
+	runCommand(t, m, "/config web port 70000")
+	if got := transcriptText(m); !strings.Contains(got, "usage: /config web port") {
+		t.Fatalf("expected usage, got:\n%s", got)
+	}
+}
+
+func TestConfigAgentsOnPersistsAndMovesTheFleet(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("BOOP_CONFIG_DIR", dir)
+	m := newAttachedModel(t, func(c *config.Config) { c.Agents.Enabled = false })
+
+	runCommand(t, m, "/config agents on")
+
+	if !m.app.Config.Agents.Enabled {
+		t.Fatal("running config still has agents disabled")
+	}
+	disk, err := config.LoadFrom(filepath.Join(dir, "config.yaml"))
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if !disk.Agents.Enabled {
+		t.Fatal("persisted config still has agents disabled")
 	}
 }
 

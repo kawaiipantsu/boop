@@ -141,8 +141,8 @@ func (c *Config) SaveTo(path string) error {
 	tmpName := tmp.Name()
 	// Best-effort cleanup; a successful rename makes this a no-op.
 	defer func() {
-		tmp.Close()
-		os.Remove(tmpName)
+		_ = tmp.Close()
+		_ = os.Remove(tmpName)
 	}()
 
 	// CreateTemp already uses 0600, but be explicit: the mode of this file is

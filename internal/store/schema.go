@@ -147,7 +147,7 @@ func appliedVersions(ctx context.Context, db *sql.DB) (map[int64]struct{}, error
 	if err != nil {
 		return nil, fmt.Errorf("store: read schema_version: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	applied := make(map[int64]struct{})
 	for rows.Next() {

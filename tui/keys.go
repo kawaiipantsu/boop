@@ -59,12 +59,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case "pgup":
-		m.viewport.ViewUp()
+		m.viewport.PageUp()
 		m.follow = m.viewport.AtBottom()
 		return nil
 
 	case "pgdown":
-		m.viewport.ViewDown()
+		m.viewport.PageDown()
 		m.follow = m.viewport.AtBottom()
 		return nil
 
@@ -79,12 +79,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case "shift+up":
-		m.viewport.LineUp(1)
+		m.viewport.ScrollUp(1)
 		m.follow = m.viewport.AtBottom()
 		return nil
 
 	case "shift+down":
-		m.viewport.LineDown(1)
+		m.viewport.ScrollDown(1)
 		m.follow = m.viewport.AtBottom()
 		return nil
 
@@ -300,11 +300,11 @@ func (m *Model) findHistory(query string, limit int) (string, bool) {
 func (m *Model) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	switch msg.Button {
 	case tea.MouseButtonWheelUp:
-		m.viewport.LineUp(3)
+		m.viewport.ScrollUp(3)
 		m.follow = m.viewport.AtBottom()
 		return nil
 	case tea.MouseButtonWheelDown:
-		m.viewport.LineDown(3)
+		m.viewport.ScrollDown(3)
 		m.follow = m.viewport.AtBottom()
 		return nil
 	}

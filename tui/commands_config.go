@@ -2,30 +2,205 @@ package tui
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/kawaiipantsu/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
 // configCmd shows the configuration this process is actually running with
-// (§55), including the overrides applied on the command line.
+// (§55), including the overrides applied on the command line, and — with a
+// recognised sub-command — writes a single setting to config.yaml.
 //
-// It is read-only. Editing happens in the config file or the WebUI settings
-// page; a half-applied change made mid-session would be worse than one that
-// takes effect on restart, which is the same reason PUT /api/config does not
-// mutate the running process either.
+// The direct-command form (§55) is deliberately small: it changes one field,
+// persists it, and says whether the running process could honour it now or
+// needs a restart. The full interactive editor is a separate, larger job.
+// Bulk editing still belongs in config.yaml or the WebUI, because a
+// half-applied set of changes mid-session would be worse than one that lands
+// on restart — the same reason PUT /api/config does not mutate a live process.
 func (m *Model) configCmd(cmd Command) tea.Cmd {
 	if m.app == nil || m.app.Config == nil {
 		return m.say(EntryError, "no runtime is attached")
 	}
-	if len(cmd.Args) > 0 {
-		return m.say(EntryError, "usage: /config — it reports the effective configuration; edit the file or use the WebUI to change it")
+	if len(cmd.Args) == 0 {
+		return m.say(EntrySystem, configText(m.app.Config, os.LookupEnv))
 	}
-	return m.say(EntrySystem, configText(m.app.Config, os.LookupEnv))
+	switch cmd.Arg(0) {
+	case "mode":
+		return m.configSetMode(cmd.Arg(1))
+	case "agents":
+		return m.configSetAgents(cmd.Arg(1), cmd.Arg(2))
+	case "web":
+		return m.configSetWeb(cmd.Arg(1), cmd.Arg(2))
+	default:
+		return m.say(EntryError, configSetUsage())
+	}
+}
+
+// configSetUsage lists the direct-command form and points at config.yaml for
+// everything the editor will eventually cover.
+func configSetUsage() string {
+	return strings.Join([]string{
+		"usage: /config with no arguments reports the effective configuration.",
+		"direct settings, each written straight to config.yaml:",
+		"  /config mode auto|confirm     execution mode",
+		"  /config agents on|off         agent delegation",
+		"  /config agents max <n>        concurrent-agent ceiling",
+		"  /config web on|off            serve the WebUI when `boop --web` runs",
+		"  /config web port <1-65535>    WebUI port",
+		"  /config web listen <ip>       WebUI bind address",
+		"the other fields (provider, model, base URL, timeouts, token limits,",
+		"temperature, logging) are edited in config.yaml or the WebUI; an",
+		"interactive editor for them is still to come.",
+	}, "\n")
+}
+
+// persistConfigField reads config.yaml, applies one change, validates it and
+// writes it back, returning the file path and any advisory warnings.
+//
+// It reloads from disk rather than saving m.app.Config so a per-invocation flag
+// override (--mode, --provider, --dangerously-unrestricted) is never frozen
+// into the file, and so a change made in another editor is not clobbered. The
+// caller mirrors the field onto m.app.Config for whatever can take effect
+// without a restart.
+func persistConfigField(apply func(*config.Config)) (path string, warnings []string, err error) {
+	path, err = config.ConfigFile()
+	if err != nil {
+		return "", nil, err
+	}
+	disk, err := config.Load()
+	if err != nil {
+		return "", nil, err
+	}
+	apply(disk)
+	if warnings, err = disk.Validate(); err != nil {
+		return "", nil, err
+	}
+	if err = disk.Save(); err != nil {
+		return "", nil, err
+	}
+	return path, warnings, nil
+}
+
+// configSaved renders the confirmation shared by every set command: what moved
+// in the running process, where it was written, and any validation warnings.
+func (m *Model) configSaved(path string, warnings []string, live string) tea.Cmd {
+	var b strings.Builder
+	b.WriteString(live)
+	fmt.Fprintf(&b, "\nsaved to %s", path)
+	for _, w := range warnings {
+		fmt.Fprintf(&b, "\nwarning: %s", w)
+	}
+	return m.say(EntrySystem, b.String())
+}
+
+// configSetMode changes execution.mode. It is one of the few settings that can
+// move under a running process: the evaluator reads it on every decision, the
+// same way /permissions mode does.
+func (m *Model) configSetMode(v string) tea.Cmd {
+	mode := permissions.Mode(strings.TrimSpace(v))
+	if !mode.Valid() {
+		return m.say(EntryError, "usage: /config mode auto|confirm")
+	}
+	path, warnings, err := persistConfigField(func(c *config.Config) {
+		c.Execution.Mode = mode
+	})
+	if err != nil {
+		return m.say(EntryError, "could not save the configuration: "+err.Error())
+	}
+	policy := m.app.Evaluator.Policy()
+	policy.Mode = mode
+	m.app.Evaluator.SetPolicy(policy)
+	m.app.Config.Execution.Mode = mode
+	return m.configSaved(path, warnings, "execution mode is now "+string(mode)+", now and on restart")
+}
+
+// configSetAgents changes agents.enabled or agents.max. The live fleet moves
+// with the flag via the /agents helpers, which also cancel work already under
+// way when delegation is turned off.
+func (m *Model) configSetAgents(sub, arg string) tea.Cmd {
+	switch sub {
+	case "on", "off":
+		on := sub == "on"
+		path, warnings, err := persistConfigField(func(c *config.Config) {
+			c.Agents.Enabled = on
+		})
+		if err != nil {
+			return m.say(EntryError, "could not save the configuration: "+err.Error())
+		}
+		m.setAgentsEnabled(on)
+		return m.configSaved(path, warnings, fmt.Sprintf("agent delegation is %s", onOff(on)))
+	case "max":
+		n, err := strconv.Atoi(strings.TrimSpace(arg))
+		if err != nil || n < 1 {
+			return m.say(EntryError, "usage: /config agents max <n> — a whole number, at least 1")
+		}
+		path, warnings, err := persistConfigField(func(c *config.Config) {
+			c.Agents.Max = n
+		})
+		if err != nil {
+			return m.say(EntryError, "could not save the configuration: "+err.Error())
+		}
+		m.setAgentsMax(strconv.Itoa(n))
+		return m.configSaved(path, warnings, fmt.Sprintf("at most %d agent(s) will run at once", n))
+	default:
+		return m.say(EntryError, "usage: /config agents on|off|max <n>")
+	}
+}
+
+// configSetWeb changes web.enabled, web.port or web.listen. None of these can
+// move under a running server — the WebUI is a separate process (§22) — so the
+// confirmation says a restart of `boop --web` is needed.
+func (m *Model) configSetWeb(sub, arg string) tea.Cmd {
+	switch sub {
+	case "on", "off":
+		on := sub == "on"
+		path, warnings, err := persistConfigField(func(c *config.Config) {
+			c.Web.Enabled = on
+		})
+		if err != nil {
+			return m.say(EntryError, "could not save the configuration: "+err.Error())
+		}
+		m.app.Config.Web.Enabled = on
+		return m.configSaved(path, warnings, fmt.Sprintf(
+			"web.enabled = %t; this terminal serves no WebUI — start one with `boop --web`", on))
+	case "port":
+		n, err := strconv.Atoi(strings.TrimSpace(arg))
+		if err != nil || n < 1 || n > 65535 {
+			return m.say(EntryError, "usage: /config web port <1-65535>")
+		}
+		path, warnings, err := persistConfigField(func(c *config.Config) {
+			c.Web.Port = n
+		})
+		if err != nil {
+			return m.say(EntryError, "could not save the configuration: "+err.Error())
+		}
+		m.app.Config.Web.Port = n
+		return m.configSaved(path, warnings, fmt.Sprintf(
+			"web.port is now %d; restart `boop --web` to pick it up", n))
+	case "listen":
+		addr := strings.TrimSpace(arg)
+		if net.ParseIP(addr) == nil {
+			return m.say(EntryError, "usage: /config web listen <ip> — an IP address (127.0.0.1 for local-only, 0.0.0.0 for every interface)")
+		}
+		path, warnings, err := persistConfigField(func(c *config.Config) {
+			c.Web.Listen = addr
+		})
+		if err != nil {
+			return m.say(EntryError, "could not save the configuration: "+err.Error())
+		}
+		m.app.Config.Web.Listen = addr
+		return m.configSaved(path, warnings, fmt.Sprintf(
+			"web.listen is now %s; restart `boop --web` to pick it up", addr))
+	default:
+		return m.say(EntryError, "usage: /config web on|off|port <n>|listen <ip>")
+	}
 }
 
 // configText renders the effective configuration.

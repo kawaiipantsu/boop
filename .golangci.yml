@@ -1,0 +1,37 @@
+# golangci-lint v2 configuration.
+#
+# CI previously ran golangci/golangci-lint-action@v6 with `version: latest`,
+# which resolves to golangci-lint v1.64.8 (built with Go 1.24). That binary
+# refuses to run against this Go 1.25 module ("the Go language version used to
+# build golangci-lint is lower than the targeted Go version"), so the Lint
+# check never actually executed. The action is now on v8 with a pinned v2
+# release; this file keeps the enforced rule set equivalent to what v1 would
+# have checked — staticcheck's SA* correctness checks plus gosimple's S1* — so
+# the migration changes the toolchain, not the standards.
+version: "2"
+
+linters:
+  # Default linters: errcheck, govet, ineffassign, staticcheck, unused.
+  settings:
+    errcheck:
+      # Writes to an already-open stderr/stdout stream: a failed write to the
+      # terminal is not something the CLI can act on. Every other ignored
+      # error is made explicit with `_ =` at the call site.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    staticcheck:
+      # v2 folds gosimple/stylecheck/quickfix into staticcheck and enables
+      # ST*/QF* by default. Restrict to the historical set.
+      checks:
+        - SA*
+        - S1*
+  exclusions:
+    rules:
+      # Test code and the fake-provider fixtures ignore errors from response
+      # writers, buffered encoders and best-effort Close on cleanup. Production
+      # code does not get that latitude.
+      - path: (_test\.go$|^tests/fixtures/)
+        linters:
+          - errcheck

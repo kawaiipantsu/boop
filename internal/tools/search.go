@@ -272,7 +272,7 @@ func (s *fsSearcher) scanFile(ctx context.Context, full string) error {
 		}
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sniff := make([]byte, fsSniffBytes)
 	n, err := io.ReadFull(f, sniff)

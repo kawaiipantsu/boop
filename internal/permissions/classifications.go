@@ -1700,11 +1700,9 @@ func classifyFetchExec(pipeline [][]string) (Classification, bool) {
 		if fetchedAt < 0 || i <= fetchedAt {
 			continue
 		}
-		inner := argv
 		if containsWord(privilegeEscalators, name) {
 			if wrapped, _ := splitPrivileged(name, argv[1:]); len(wrapped) > 0 {
-				inner = wrapped
-				name = commandName(inner[0])
+				name = commandName(wrapped[0])
 			}
 		}
 		if containsWord(shellInterpreters, name) || containsWord(scriptInterpreters, name) {

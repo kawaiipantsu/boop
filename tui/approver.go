@@ -49,7 +49,6 @@ func (a *Approver) SetEvaluator(e *permissions.Evaluator) {
 }
 
 // SetTurnContext binds later approvals to the lifetime of the current turn.
-// Passing nil restores the background context.
 func (a *Approver) SetTurnContext(ctx context.Context) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -58,6 +57,10 @@ func (a *Approver) SetTurnContext(ctx context.Context) {
 	a.turnCtx = ctx
 	a.mu.Unlock()
 }
+
+// ResetTurnContext restores the background context once a turn is over, so a
+// later approval is not tied to the finished turn's cancellation.
+func (a *Approver) ResetTurnContext() { a.SetTurnContext(context.Background()) }
 
 // Approve implements permissions.Approver. It blocks until the operator
 // answers, the turn is cancelled, or the broker closes.

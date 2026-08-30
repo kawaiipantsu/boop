@@ -43,7 +43,7 @@ func runPlainCLI(ctx context.Context, opts options, stdout, stderr io.Writer) er
 	if err != nil {
 		return err
 	}
-	defer application.Close()
+	defer func() { _ = application.Close() }()
 
 	sess, err := application.Sessions.Create(ctx, session.CreateOptions{
 		ProjectPath: application.Workspace.Root(),
