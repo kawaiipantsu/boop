@@ -180,3 +180,33 @@ func TestLoopRunnerFallsBackToTheFactoryRegistry(t *testing.T) {
 		t.Errorf("tools offered = %+v, want only read", p.requests()[0].Tools)
 	}
 }
+
+func TestLoopRunnerStampsSessionIDAndAgentIDOnEmittedEvents(t *testing.T) {
+	p := &scriptedProvider{turns: [][]provider.ChatEvent{
+		textTurn("Task completed without tools."),
+	}}
+	reg, _ := fullRegistry("read")
+	bus, col := newBusWithCollector()
+	runner := &LoopRunner{Loops: newLoopFactory(t, p, reg, bus)}
+
+	a := NewAgent(AgentSpec{Name: "worker-1", Task: "test task", Bus: bus, SessionID: "sess-abc"})
+	brief := Brief{Task: "test task"}
+
+	_, err := runner.RunTask(context.Background(), a, brief)
+	if err != nil {
+		t.Fatalf("RunTask: %v", err)
+	}
+
+	evs := col.of(app.EventModelCompleted)
+	if len(evs) == 0 {
+		t.Fatal("did not find EventModelCompleted in collector")
+	}
+	for _, ev := range evs {
+		if ev.SessionID != "sess-abc" {
+			t.Errorf("EventModelCompleted SessionID = %q, want sess-abc", ev.SessionID)
+		}
+		if ev.AgentID != a.ID {
+			t.Errorf("EventModelCompleted AgentID = %q, want %q", ev.AgentID, a.ID)
+		}
+	}
+}

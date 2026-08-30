@@ -35,6 +35,8 @@ type Loop struct {
 	MaxIterations int
 	// SessionID labels emitted events.
 	SessionID string
+	// AgentID labels emitted events originating from a worker agent.
+	AgentID string
 	// Selection pins the provider, model and required capabilities.
 	Selection provider.Selection
 	// Context bounds what is actually sent. Without one the whole
@@ -375,6 +377,16 @@ func (l *Loop) recordTool(name string, result tools.Result) {
 // emit publishes to the bus when one is attached.
 func (l *Loop) emit(t EventType, payload any) {
 	if l.Bus == nil {
+		return
+	}
+	if l.AgentID != "" {
+		l.Bus.Publish(Event{
+			Type:      t,
+			SessionID: l.SessionID,
+			AgentID:   l.AgentID,
+			Payload:   payload,
+			At:        time.Now(),
+		})
 		return
 	}
 	l.Bus.Emit(t, l.SessionID, payload)

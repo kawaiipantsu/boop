@@ -698,8 +698,28 @@ func (c *Coordinator) executeTask(ctx context.Context, task Task) (TaskOutcome, 
 		Requirements: rc.requirements,
 	})
 
+	if c.bus != nil {
+		c.bus.Publish(app.Event{
+			Type:      app.EventTaskStarted,
+			SessionID: c.sessionID,
+			AgentID:   a.ID,
+			Payload:   task,
+			At:        c.now(),
+		})
+	}
+
 	outcome, runErr := c.runner.RunTask(actx, a, brief)
 	outcome.AgentID = a.ID
+
+	if c.bus != nil {
+		c.bus.Publish(app.Event{
+			Type:      app.EventTaskCompleted,
+			SessionID: c.sessionID,
+			AgentID:   a.ID,
+			Payload:   outcome,
+			At:        c.now(),
+		})
+	}
 
 	switch {
 	case runErr == nil:

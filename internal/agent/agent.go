@@ -247,6 +247,13 @@ func (a *Agent) RootID() string {
 	return a.rootID
 }
 
+// SessionID returns the identifier of the session this agent belongs to.
+func (a *Agent) SessionID() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.sessionID
+}
+
 // State returns the current status. It is named State rather than Status
 // because the specification already fixes Status as a field name.
 func (a *Agent) State() AgentStatus {

@@ -59,13 +59,19 @@ func (r *LoopRunner) RunTask(ctx context.Context, a *Agent, brief Brief) (TaskOu
 	if r == nil || r.Loops == nil {
 		return TaskOutcome{}, ErrNoLoop
 	}
-	base := r.Loops(a.ID)
+	sessionID := a.SessionID()
+	if sessionID == "" {
+		sessionID = a.ID
+	}
+	base := r.Loops(sessionID)
 	if base == nil {
 		return TaskOutcome{}, ErrNoLoop
 	}
 
 	// Copy so per-worker settings never mutate a loop the caller reuses.
 	loop := *base
+	loop.SessionID = sessionID
+	loop.AgentID = a.ID
 
 	source := r.Tools
 	if source == nil {

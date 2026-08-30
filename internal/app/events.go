@@ -24,6 +24,8 @@ const (
 
 	EventAgentCreated       EventType = "agent.created"
 	EventAgentStatusChanged EventType = "agent.status.changed"
+	EventTaskStarted        EventType = "task.started"
+	EventTaskCompleted      EventType = "task.completed"
 
 	EventToolRequested EventType = "tool.requested"
 	EventToolCompleted EventType = "tool.completed"
