@@ -59,6 +59,7 @@ var BuiltinToolNames = map[string]bool{
 	"websearch":   true,
 	"attach":      true,
 	"memory":      true,
+	"todo":        true,
 }
 
 // validateTools validates user-declared custom tools in config.

@@ -52,6 +52,7 @@ func BuildTools(cfg *config.Config, deps ToolDeps) (*tools.Registry, error) {
 	// the entry point for anything that is not plain text.
 	reg.Register(tools.NewAttachTool(deps.Workspace))
 	reg.Register(tools.NewMemoryTool(deps.Workspace))
+	reg.Register(tools.NewTodoTool(nil))
 
 	// Command execution.
 	run := tools.NewRunTool(deps.Executor, deps.Workspace)
