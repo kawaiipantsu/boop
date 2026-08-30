@@ -94,6 +94,14 @@ Changes to these files can affect production; treat them with deliberate intent.
   TUI still mutates its snapshot in place — pre-existing, single-loop, out of
   scope for #6. `web.Server` keeps its own Holder because `Options.Config` may
   deliberately differ from `App.Config()`; a live PUT writes both.
+- `/config <field> <value>` (#16) goes through `configApply` in
+  `tui/commands_config.go`: `persistConfigField` writes the disk file (reloaded
+  first so `--flag` overrides aren't frozen in), then `App.ApplyConfig` swaps a
+  cloned live snapshot. The confirmation says "in effect now" or "restart to
+  apply (<groups>)" from `ApplyConfig`'s return. `/config provider|model` also
+  call `persistSelection`. `temperature` deliberately has no command — no config
+  field for it yet. A full-screen visual editor is left as a future nicety; the
+  direct commands meet §55's intent.
 
 ## Current Work
 

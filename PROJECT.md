@@ -2264,33 +2264,31 @@ store and writes no logs.
 
 # 55. Configuration UX
 
-`/config` should open an interactive TUI editor.
-
-At minimum expose:
-
-- provider,
-- model,
-- base URL,
-- execution mode,
-- agent enablement,
-- max agents,
-- WebUI enablement,
-- listen address,
-- port,
-- token limits,
-- temperature,
-- timeouts,
-- logging.
-
-Direct commands should also work:
+`/config` with no arguments prints the effective configuration (credential
+values never shown). Direct set commands cover every adjustable field, each
+written to `config.yaml` and applied live where a running process can honour it
+(`App.ApplyConfig`), naming the groups that need a restart otherwise:
 
 ```text
-/config mode auto
-/config mode confirm
-/config agents on
-/config web on
-/config web port 8585
+/config mode auto|confirm
+/config provider <name>
+/config model <id>|default
+/config base-url [provider] <url>
+/config agents on|off | /config agents max <n>
+/config network on|off
+/config max-iterations <n> | /config max-retries <n>
+/config timeout <duration>
+/config log level <lvl> | /config log format text|json
+/config web on|off | /config web port <n> | /config web listen <ip>
 ```
+
+Fields exposed: provider, model, base URL, execution mode, agent enablement,
+max agents, WebUI enablement, listen address, port, tool-loop limits, timeouts,
+logging. `temperature` has no config field yet; adding a provider, routing and
+credentials stay `config.yaml` edits.
+
+A full-screen visual editor over the same fields is a possible future addition;
+the direct commands already deliver the adjust-without-editing-YAML goal.
 
 ---
 

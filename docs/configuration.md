@@ -76,24 +76,33 @@ comments.
 values are never shown, only the environment-variable names.
 
 `/config <field> <value>` changes one setting, writes it straight to
-`config.yaml`, and reports whether the running process could honour it now or
-needs a restart. It reloads the file before writing, so a per-invocation flag
-override (`--mode`, `--provider`) is never frozen in, and a change made in
-another editor is not clobbered. An invalid value is rejected and nothing is
-written.
+`config.yaml`, and — through `App.ApplyConfig` — applies whatever a running
+process can honour immediately, naming the groups that need a restart. It
+reloads the file before writing, so a per-invocation flag override (`--mode`,
+`--provider`) is never frozen in, and a change made in another editor is not
+clobbered. An invalid value is rejected and nothing is written.
 
 | Command | Field | Takes effect |
 |---|---|---|
 | `/config mode auto\|confirm` | `execution.mode` | immediately — the evaluator re-reads it every decision |
+| `/config provider <name>` | `provider` | immediately — must already be configured |
+| `/config model <id>\|default` | `model` | immediately |
 | `/config agents on\|off` | `agents.enabled` | immediately — the live fleet moves with it |
 | `/config agents max <n>` | `agents.max` | immediately |
+| `/config max-iterations <n>` | `execution.max_tool_iterations` | next message |
+| `/config max-retries <n>` | `execution.max_retries_per_command` | next message |
+| `/config base-url [provider] <url>` | `providers.<name>.base_url` | restart |
+| `/config network on\|off` | `network.enabled` | restart — it gates which tools exist |
+| `/config timeout <duration>` | `execution.command_timeout` | restart |
+| `/config log level <lvl>` / `/config log format text\|json` | `logging.*` | restart |
 | `/config web on\|off` | `web.enabled` | next `boop --web` |
 | `/config web port <1-65535>` | `web.port` | next `boop --web` |
 | `/config web listen <ip>` | `web.listen` | next `boop --web` |
 
-The remaining fields (provider, model, base URL, timeouts, token limits,
-temperature, logging) are still edited in `config.yaml` or the WebUI; an
-interactive editor for the full set is planned (§55).
+Adding a provider, editing routing or fallback, and setting a credential
+environment variable are still `config.yaml` edits (`api_key_env` names a
+variable; a literal key is rejected by shape). `temperature` has no config field
+yet.
 
 ## Validation
 
