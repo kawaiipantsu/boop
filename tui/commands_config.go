@@ -4,28 +4,84 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/kawaiipantsu/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/permissions"
 )
 
-// configCmd shows the configuration this process is actually running with
-// (§55), including the overrides applied on the command line.
-//
-// It is read-only. Editing happens in the config file or the WebUI settings
-// page; a half-applied change made mid-session would be worse than one that
-// takes effect on restart, which is the same reason PUT /api/config does not
-// mutate the running process either.
+// configCmd shows the effective configuration or adjusts runtime settings directly (§55).
 func (m *Model) configCmd(cmd Command) tea.Cmd {
 	if m.app == nil || m.app.Config == nil {
 		return m.say(EntryError, "no runtime is attached")
 	}
-	if len(cmd.Args) > 0 {
-		return m.say(EntryError, "usage: /config — it reports the effective configuration; edit the file or use the WebUI to change it")
+	cfg := m.app.Config
+
+	if len(cmd.Args) == 0 {
+		return m.say(EntrySystem, configText(cfg, os.LookupEnv))
 	}
-	return m.say(EntrySystem, configText(m.app.Config, os.LookupEnv))
+
+	switch strings.ToLower(cmd.Arg(0)) {
+	case "mode":
+		switch strings.ToLower(cmd.Arg(1)) {
+		case "auto":
+			cfg.Execution.Mode = permissions.ModeAuto
+			return m.say(EntrySystem, "execution mode set to auto (approved categories run without prompting)")
+		case "confirm":
+			cfg.Execution.Mode = permissions.ModeConfirm
+			return m.say(EntrySystem, "execution mode set to confirm (all actions require user approval)")
+		default:
+			return m.say(EntryError, "usage: /config mode [auto|confirm]")
+		}
+	case "agents":
+		switch strings.ToLower(cmd.Arg(1)) {
+		case "on":
+			return m.setAgentsEnabled(true)
+		case "off":
+			return m.setAgentsEnabled(false)
+		case "max":
+			return m.setAgentsMax(cmd.Arg(2))
+		default:
+			return m.say(EntryError, "usage: /config agents [on|off|max <n>]")
+		}
+	case "web":
+		switch strings.ToLower(cmd.Arg(1)) {
+		case "on":
+			cfg.Web.Enabled = true
+			return m.say(EntrySystem, fmt.Sprintf("WebUI enabled (runs on %s:%d)", cfg.Web.Listen, cfg.Web.Port))
+		case "off":
+			cfg.Web.Enabled = false
+			return m.say(EntrySystem, "WebUI disabled")
+		case "port":
+			p, err := strconv.Atoi(cmd.Arg(2))
+			if err != nil || p < 1 || p > 65535 {
+				return m.say(EntryError, "usage: /config web port <1-65535>")
+			}
+			cfg.Web.Port = p
+			return m.say(EntrySystem, fmt.Sprintf("WebUI port set to %d (takes effect on restart)", p))
+		default:
+			return m.say(EntryError, "usage: /config web [on|off|port <n>]")
+		}
+	case "log", "logging":
+		lvl := strings.ToLower(cmd.Arg(1))
+		switch lvl {
+		case "trace", "debug", "info", "warn", "error":
+			cfg.Logging.Level = lvl
+			return m.say(EntrySystem, fmt.Sprintf("log level set to %s", lvl))
+		default:
+			return m.say(EntryError, "usage: /config log [trace|debug|info|warn|error]")
+		}
+	case "save":
+		if err := cfg.Save(); err != nil {
+			return m.say(EntryError, "failed to save config: "+err.Error())
+		}
+		return m.say(EntrySystem, "configuration saved to disk")
+	default:
+		return m.say(EntryError, "usage: /config [mode auto|confirm | agents on|off|max <n> | web on|off|port <n> | log <level> | save]")
+	}
 }
 
 // configText renders the effective configuration.

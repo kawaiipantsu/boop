@@ -735,3 +735,31 @@ func TestCommandsWithoutARuntimeExplainThemselves(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigDirectCommands(t *testing.T) {
+	m := newAttachedModel(t, nil)
+
+	// Test /config
+	runCommand(t, m, "/config")
+	if got := transcriptText(m); !strings.Contains(got, "effective configuration") {
+		t.Errorf("/config output missing header:\n%s", got)
+	}
+
+	// Test /config mode auto
+	runCommand(t, m, "/config mode auto")
+	if m.app.Config.Execution.Mode != permissions.ModeAuto {
+		t.Errorf("Mode = %q, want auto", m.app.Config.Execution.Mode)
+	}
+
+	// Test /config web port 9090
+	runCommand(t, m, "/config web port 9090")
+	if m.app.Config.Web.Port != 9090 {
+		t.Errorf("Web.Port = %d, want 9090", m.app.Config.Web.Port)
+	}
+
+	// Test /config log debug
+	runCommand(t, m, "/config log debug")
+	if m.app.Config.Logging.Level != "debug" {
+		t.Errorf("Logging.Level = %q, want debug", m.app.Config.Logging.Level)
+	}
+}
