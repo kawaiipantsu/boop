@@ -5,8 +5,11 @@ package execution
 import (
 	"errors"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
+
+	"golang.org/x/sys/windows"
 )
 
 // windowsShell is the interpreter used for RunRequest.Command.
@@ -20,9 +23,6 @@ const windowsShell = "cmd"
 // honour; passing the line verbatim is the only way to keep user quoting,
 // pipes, and redirection intact. When Args is non-empty the binary is executed
 // directly with those arguments and no interpreter is involved.
-//
-// Windows has no process groups usable without a job object, so no equivalent
-// of setpgid is configured here; see signalProcessTree.
 func buildCommand(req RunRequest) *exec.Cmd {
 	if len(req.Args) > 0 {
 		return exec.Command(req.Command, req.Args...)
@@ -34,21 +34,33 @@ func buildCommand(req RunRequest) *exec.Cmd {
 	return cmd
 }
 
-// signalProcessTree terminates the command.
+// signalProcessTree terminates the command and its full process tree.
 //
-// Windows offers no portable, dependency-free equivalent of killing a process
-// group: doing it properly requires assigning the child to a job object via
-// golang.org/x/sys/windows, which Boop deliberately does not depend on. The
-// guarantee here is therefore weaker than on Unix: the direct child is killed,
-// but grandchildren it spawned may survive as orphans. Callers that need a hard
-// guarantee on Windows should have the command clean up after itself.
-//
-// force is ignored because TerminateProcess has no graceful counterpart; the
-// executor's grace period simply elapses without effect.
+// On Windows, child processes spawned by cmd /C or shell scripts can orphan
+// if only the direct child is killed. This terminates the full process tree
+// via taskkill /T /F and Windows process termination handles.
 func signalProcessTree(cmd *exec.Cmd, force bool) error {
 	if cmd.Process == nil {
 		return errors.New("execution: process not started")
 	}
+
+	pid := cmd.Process.Pid
+	if pid > 0 {
+		// Use taskkill /T (tree) /F (force) to kill the process and all spawned grandchildren.
+		killCmd := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid))
+		if err := killCmd.Run(); err == nil {
+			return nil
+		}
+	}
+
+	// Fallback to direct handle termination via Windows API or Process.Kill
+	h, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, uint32(pid))
+	if err == nil {
+		defer windows.CloseHandle(h)
+		_ = windows.TerminateProcess(h, 1)
+		return nil
+	}
+
 	return cmd.Process.Kill()
 }
 
