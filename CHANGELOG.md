@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `boop status` — a command-line equivalent of `GET /api/status` (§54). Reports
+  build metadata, the active provider's health and latency, the model's
+  discovered capabilities and context window, execution mode, agent bounds and
+  the network toggle. Exits non-zero when the active provider is unreachable, so
+  it composes in a script or a health check. `boop status --json` for a
+  machine-readable form; `boop --status` is the flag equivalent. It builds no
+  session store and writes no logs.
+
 ## [0.1.0-rc.1] - 2026-08-29
 
 First release candidate. The core runtime, tool layer, permission engine,

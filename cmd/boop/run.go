@@ -27,7 +27,11 @@ type options struct {
 	// deliberately verbose and must never be needed for normal local work.
 	dangerouslyUnrestricted bool
 	showVersion             bool
-	verbose                 bool
+	// showStatus prints the provider and runtime health report, then exits.
+	showStatus bool
+	// statusJSON switches the status report to JSON.
+	statusJSON bool
+	verbose    bool
 	// allowInsecureBind permits binding beyond loopback with auth disabled.
 	// It is deliberately explicit: §23 says never assume a LAN is trusted.
 	allowInsecureBind bool
@@ -44,6 +48,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return nil
 		case "prep":
 			return runPrep(context.Background(), args[1:], stdout, stderr)
+		case "status":
+			return runStatusCommand(context.Background(), args[1:], stdout, stderr)
 		}
 	}
 	opts, err := parse(args, stderr)
@@ -53,6 +59,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if opts.showVersion {
 		fmt.Fprintln(stdout, version.Get())
 		return nil
+	}
+	if opts.showStatus {
+		return runStatus(context.Background(), opts, stdout, stderr)
 	}
 	return dispatch(opts, stdout, stderr)
 }
@@ -75,6 +84,8 @@ func parse(args []string, stderr io.Writer) (options, error) {
 	fs.BoolVar(&opts.dangerouslyUnrestricted, "dangerously-unrestricted", false,
 		"skip all permission confirmation (not required for normal local development)")
 	fs.BoolVar(&opts.showVersion, "version", false, "print version and exit")
+	fs.BoolVar(&opts.showStatus, "status", false, "print provider and runtime status, then exit")
+	fs.BoolVar(&opts.statusJSON, "status-json", false, "with --status, print the report as JSON")
 	fs.BoolVar(&opts.verbose, "verbose", false, "report tool activity and timings on stderr")
 	fs.BoolVar(&opts.verbose, "v", false, "shorthand for --verbose")
 	fs.BoolVar(&opts.allowInsecureBind, "allow-insecure-bind", false,
@@ -137,6 +148,7 @@ usage:
   boop <prompt...>                  submit a prompt, then continue interactively
   boop --prompt "<text>"            same, when the text would confuse flag parsing
   boop prep                         inspect the project and write Boop.md
+  boop status                       report provider health and model capabilities
   boop version                      print build metadata
 
 examples:
