@@ -2265,8 +2265,15 @@ store and writes no logs.
 # 55. Configuration UX
 
 `/config` with no arguments prints the effective configuration (credential
-values never shown). Direct set commands cover every adjustable field, each
-written to `config.yaml` and applied live where a running process can honour it
+values never shown). `/config edit` opens a full-screen editor over the same
+fields — arrow keys to move, ←/→ or space to toggle a bool or cycle an enum,
+Enter to edit a text value, Ctrl+S to save, Esc to cancel. On save it validates
+the whole draft, writes `config.yaml`, and calls `App.ApplyConfig` so live
+fields take effect immediately while restart-only ones are named. Credentials
+have no field: `api_key_env`, `token_env` and headers stay `config.yaml` edits.
+
+Direct set commands cover every adjustable field too, each written to
+`config.yaml` and applied live where a running process can honour it
 (`App.ApplyConfig`), naming the groups that need a restart otherwise:
 
 ```text
@@ -2282,13 +2289,10 @@ written to `config.yaml` and applied live where a running process can honour it
 /config web on|off | /config web port <n> | /config web listen <ip>
 ```
 
-Fields exposed: provider, model, base URL, execution mode, agent enablement,
-max agents, WebUI enablement, listen address, port, tool-loop limits, timeouts,
-logging. `temperature` has no config field yet; adding a provider, routing and
-credentials stay `config.yaml` edits.
-
-A full-screen visual editor over the same fields is a possible future addition;
-the direct commands already deliver the adjust-without-editing-YAML goal.
+Fields exposed (both forms): provider, model, base URL, execution mode, agent
+enablement, max agents, outbound web access, WebUI enablement, listen address,
+port, tool-loop limits, timeouts, logging. `temperature` has no config field
+yet; adding a provider, routing and credentials stay `config.yaml` edits.
 
 ---
 

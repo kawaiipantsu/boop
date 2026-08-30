@@ -75,6 +75,14 @@ comments.
 `/config` with no arguments prints the effective configuration; credential
 values are never shown, only the environment-variable names.
 
+`/config edit` opens a full-screen editor over the same fields: `↑`/`↓` move,
+`←`/`→` or space toggle a boolean or cycle an enum, `Enter` edits a text value
+(`Enter` commits, `Esc` cancels the edit), `Ctrl+S` saves, `Esc` closes without
+saving. Each row is tagged `live` or `restart`; a `*` marks a field you changed.
+Saving validates the whole draft, writes `config.yaml`, and applies the live
+fields immediately (`App.ApplyConfig`), naming the groups that need a restart.
+Credentials have no field in the editor.
+
 `/config <field> <value>` changes one setting, writes it straight to
 `config.yaml`, and — through `App.ApplyConfig` — applies whatever a running
 process can honour immediately, naming the groups that need a restart. It

@@ -99,10 +99,14 @@ func (m *Model) ruleRow() string {
 	return m.theme.rule.Render(strings.Repeat("─", maxInt(1, m.width)))
 }
 
-// bodyRows renders the transcript viewport padded to its budgeted height.
+// bodyRows renders the transcript viewport padded to its budgeted height, or
+// the full-screen config editor when it is open.
 func (m *Model) bodyRows() []string {
 	if m.layout.Body <= 0 {
 		return nil
+	}
+	if m.editor != nil {
+		return m.editorRows()
 	}
 	view := strings.Split(m.viewport.View(), "\n")
 	rows := make([]string, 0, m.layout.Body)
@@ -240,6 +244,8 @@ func (m *Model) hints() string {
 	switch {
 	case m.prompt != nil:
 		return "a approve · s session · r/Esc reject"
+	case m.editor != nil:
+		return "↑↓ move · ←→ change · enter edit · Ctrl+S save · Esc cancel"
 	case m.turnActive:
 		return "Ctrl+C cancel"
 	default:

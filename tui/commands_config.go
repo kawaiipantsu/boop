@@ -34,6 +34,8 @@ func (m *Model) configCmd(cmd Command) tea.Cmd {
 		return m.say(EntrySystem, configText(m.app.Config(), os.LookupEnv))
 	}
 	switch cmd.Arg(0) {
+	case "edit":
+		return m.openConfigEditor()
 	case "mode":
 		return m.configSetMode(cmd.Arg(1))
 	case "provider":
@@ -65,6 +67,7 @@ func (m *Model) configCmd(cmd Command) tea.Cmd {
 func configSetUsage() string {
 	return strings.Join([]string{
 		"usage: /config with no arguments reports the effective configuration.",
+		"  /config edit                    open the full-screen editor",
 		"direct settings, each written to config.yaml and applied live where possible:",
 		"  /config mode auto|confirm       execution mode",
 		"  /config provider <name>         active provider",
