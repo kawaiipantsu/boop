@@ -140,7 +140,7 @@ func TestBuildToolsRegistersTheCoreSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildTools() = %v", err)
 	}
-	for _, name := range []string{"read", "write", "edit", "list", "find", "search", "run", "git", "test", "build"} {
+	for _, name := range []string{"read", "write", "edit", "list", "find", "search", "run", "git", "test", "build", "lint", "format"} {
 		if _, ok := reg.Get(name); !ok {
 			t.Errorf("core tool %q not registered (have %v)", name, reg.Names())
 		}

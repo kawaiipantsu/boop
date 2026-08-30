@@ -31,11 +31,20 @@ func (m *Model) runCmd(cmd Command) tea.Cmd {
 	return m.invokeTool("run", map[string]any{"command": line})
 }
 
-// execTaskCmd implements /test and /build, which share the test/build tools'
-// argument shape: an optional explicit command, otherwise detection.
+// execTaskCmd implements /test, /build, /lint and /format, which share the task
+// tools' argument shape: an optional explicit command, otherwise detection.
+// /format also takes a leading --check (or "check") to run the read-only check.
 func (m *Model) execTaskCmd(cmd Command) tea.Cmd {
 	args := map[string]any{}
-	if line := strings.TrimSpace(cmd.Rest); line != "" {
+	line := strings.TrimSpace(cmd.Rest)
+	if cmd.Name == "format" {
+		if rest, ok := strings.CutPrefix(line, "--check"); ok {
+			args["check"], line = true, strings.TrimSpace(rest)
+		} else if rest, ok := strings.CutPrefix(line, "check"); ok && (rest == "" || rest[0] == ' ') {
+			args["check"], line = true, strings.TrimSpace(rest)
+		}
+	}
+	if line != "" {
 		args["command"] = line
 	}
 	return m.invokeTool(cmd.Name, args)

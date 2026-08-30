@@ -204,13 +204,21 @@ subset — the hook the agent runtime will use for scoped tool access.
 | `git` | from an allowlist | 27 subcommands, no shell |
 | `test` | from the classifier | detects the project's test command |
 | `build` | from the classifier | detects the project's build command |
+| `lint` | `filesystem.read` (detected) | detects golangci-lint/go vet, eslint, ruff/flake8, clippy, phpstan |
+| `format` | `filesystem.read` with `check`, else `filesystem.write` | detects gofmt, prettier, black/ruff, cargo fmt, php-cs-fixer |
 | `http` | `network.http` | only when `network.enabled` |
 | `fetch` | `network.fetch` | only when `network.enabled` |
 | `websearch` | `network.search` | only when `network.enabled` |
 
+`lint` and `format` mirror `test` and `build`: they detect the project's own
+command and report what they detected. A *detected* linter or format check only
+reads the tree, and a detected format run rewrites files, so those are filed as
+`filesystem.read` / `filesystem.write` directly; an explicit `command` override
+is classified in full like `run`.
+
 The three network tools are registered **only** when `network.enabled` is true,
 so a model is never offered a tool that is configured to refuse. With the
-default configuration a session has ten tools.
+default configuration a session has twelve tools.
 
 Two structural rules that will bite you if you miss them:
 

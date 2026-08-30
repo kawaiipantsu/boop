@@ -30,7 +30,7 @@ const (
 // distinguishes running a command from thinking about one.
 func statusForTool(tool string) Status {
 	switch tool {
-	case "run", "git", "build":
+	case "run", "git", "build", "lint", "format":
 		return StatusRunning
 	case "test":
 		return StatusTesting

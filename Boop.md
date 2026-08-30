@@ -72,6 +72,13 @@ Changes to these files can affect production; treat them with deliberate intent.
 - `provider.EmbeddingProvider` is kept though unused: the decision (issue #27) is
   that semantic project search is the intended adopter and the interface stays
   until then rather than being removed.
+- The `lint` and `format` tools extend the `execTaskKind` framework in
+  `internal/tools/test.go` rather than reusing `internal/project`'s heavier
+  project scan — detection stays targeted and deterministic like `test`/`build`.
+  A *detected* lint or `format --check` command is gated `filesystem.read`, a
+  detected `format` (rewrite) is `filesystem.write`; an explicit `command`
+  override always goes through the risk classifier. `gofmt -l` exits 0 with a
+  file list, so format-check treats non-empty stdout as "needs formatting".
 
 ## Current Work
 

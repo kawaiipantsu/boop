@@ -23,6 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   classifier never panics and always returns a gated category and risk).
   `FUZZTIME` overrides the per-target budget.
 
+- `lint` and `format` tools, mirroring `test` and `build` (§2.8). `lint` detects
+  golangci-lint or `go vet`, eslint, ruff or flake8, cargo clippy, phpstan, or a
+  Makefile `lint` target. `format` detects gofmt, prettier, black or ruff, cargo
+  fmt, php-cs-fixer, and takes `check` for a read-only "is this formatted"
+  (gated as `filesystem.read`; a rewrite is `filesystem.write`). TUI slash
+  commands `/lint` and `/format [--check]` come with them.
+
 ### Changed
 
 - `provider.EmbeddingProvider` documents that it is implemented and verified but

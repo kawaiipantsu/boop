@@ -45,6 +45,7 @@ func TestExecDetectTask(t *testing.T) {
 		name          string
 		files         map[string]string
 		kind          execTaskKind
+		checkOnly     bool
 		wantFound     bool
 		wantEcosystem string
 		wantCommand   string
@@ -189,7 +190,7 @@ func TestExecDetectTask(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			root := execWriteFixture(t, tc.files)
-			det, ok := execDetectTask(root, tc.kind)
+			det, ok := execDetectTask(root, tc.kind, tc.checkOnly)
 			if ok != tc.wantFound {
 				t.Fatalf("detected = %v (%+v), want %v", ok, det, tc.wantFound)
 			}
@@ -210,7 +211,7 @@ func TestExecDetectTask(t *testing.T) {
 }
 
 func TestExecDetectTaskEmptyRoot(t *testing.T) {
-	if _, ok := execDetectTask("", execTaskTest); ok {
+	if _, ok := execDetectTask("", execTaskTest, false); ok {
 		t.Error("an empty root must not detect anything")
 	}
 }

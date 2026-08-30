@@ -67,6 +67,14 @@ func BuildTools(cfg *config.Config, deps ToolDeps) (*tools.Registry, error) {
 	build.Classify = classify
 	reg.Register(build)
 
+	lint := tools.NewLintTool(deps.Executor, deps.Workspace)
+	lint.Classify = classify
+	reg.Register(lint)
+
+	format := tools.NewFormatTool(deps.Executor, deps.Workspace)
+	format.Classify = classify
+	reg.Register(format)
+
 	// Network tools are registered only when outbound access is enabled, so a
 	// model is never offered a tool that is configured to refuse (§2.2).
 	if cfg.Network.Enabled && deps.Web != nil {
