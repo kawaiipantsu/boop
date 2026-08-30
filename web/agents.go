@@ -253,7 +253,7 @@ func (s *Server) fleet(sessionID string) (*agent.Coordinator, string) {
 	if s.app == nil {
 		return nil, "this server was started without a Boop runtime attached"
 	}
-	if !s.cfg.Agents.Enabled {
+	if !s.conf().Agents.Enabled {
 		return nil, "agents are disabled; set agents.enabled in the configuration or run /agents on"
 	}
 	if strings.TrimSpace(sessionID) == "" {
@@ -278,9 +278,9 @@ func (s *Server) fleet(sessionID string) (*agent.Coordinator, string) {
 	}
 	// The server's own configuration wins over the runtime's, because
 	// Options.Config may deliberately differ from App.Config.
-	if s.cfg.Agents.Max > 0 {
-		if err := coord.SetMax(s.cfg.Agents.Max); err != nil {
-			s.log.Printf("web: cannot apply agents.max=%d: %v", s.cfg.Agents.Max, err)
+	if s.conf().Agents.Max > 0 {
+		if err := coord.SetMax(s.conf().Agents.Max); err != nil {
+			s.log.Printf("web: cannot apply agents.max=%d: %v", s.conf().Agents.Max, err)
 		}
 	}
 	return coord, ""
@@ -387,10 +387,10 @@ func (s *Server) listAgents(w http.ResponseWriter, r *http.Request) {
 	coord, reason := s.fleet(sessionID)
 	resp := agentsResponse{
 		SessionID:   sessionID,
-		Enabled:     s.cfg.Agents.Enabled,
+		Enabled:     s.conf().Agents.Enabled,
 		Available:   coord != nil,
 		Unavailable: reason,
-		Max:         s.cfg.Agents.Max,
+		Max:         s.conf().Agents.Max,
 		Agents:      []agentView{},
 		Runs:        s.runViews(sessionID),
 	}
@@ -451,12 +451,12 @@ func (s *Server) createAgent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, codeBadRequest, "an agent needs a `task`")
 		return
 	}
-	if !s.cfg.Agents.Enabled {
+	if !s.conf().Agents.Enabled {
 		writeError(w, http.StatusConflict, codeConflict,
 			"agents are disabled; set agents.enabled in the configuration")
 		return
 	}
-	if err := checkAgentSelection(req, s.cfg.Provider, s.cfg.Model); err != nil {
+	if err := checkAgentSelection(req, s.conf().Provider, s.conf().Model); err != nil {
 		writeError(w, http.StatusBadRequest, codeBadRequest, err.Error())
 		return
 	}

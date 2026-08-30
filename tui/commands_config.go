@@ -25,11 +25,11 @@ import (
 // half-applied set of changes mid-session would be worse than one that lands
 // on restart — the same reason PUT /api/config does not mutate a live process.
 func (m *Model) configCmd(cmd Command) tea.Cmd {
-	if m.app == nil || m.app.Config == nil {
+	if m.app == nil || m.app.Config() == nil {
 		return m.say(EntryError, "no runtime is attached")
 	}
 	if len(cmd.Args) == 0 {
-		return m.say(EntrySystem, configText(m.app.Config, os.LookupEnv))
+		return m.say(EntrySystem, configText(m.app.Config(), os.LookupEnv))
 	}
 	switch cmd.Arg(0) {
 	case "mode":
@@ -64,10 +64,10 @@ func configSetUsage() string {
 // persistConfigField reads config.yaml, applies one change, validates it and
 // writes it back, returning the file path and any advisory warnings.
 //
-// It reloads from disk rather than saving m.app.Config so a per-invocation flag
+// It reloads from disk rather than saving m.app.Config() so a per-invocation flag
 // override (--mode, --provider, --dangerously-unrestricted) is never frozen
 // into the file, and so a change made in another editor is not clobbered. The
-// caller mirrors the field onto m.app.Config for whatever can take effect
+// caller mirrors the field onto m.app.Config() for whatever can take effect
 // without a restart.
 func persistConfigField(apply func(*config.Config)) (path string, warnings []string, err error) {
 	path, err = config.ConfigFile()
@@ -117,7 +117,7 @@ func (m *Model) configSetMode(v string) tea.Cmd {
 	policy := m.app.Evaluator.Policy()
 	policy.Mode = mode
 	m.app.Evaluator.SetPolicy(policy)
-	m.app.Config.Execution.Mode = mode
+	m.app.Config().Execution.Mode = mode
 	return m.configSaved(path, warnings, "execution mode is now "+string(mode)+", now and on restart")
 }
 
@@ -167,7 +167,7 @@ func (m *Model) configSetWeb(sub, arg string) tea.Cmd {
 		if err != nil {
 			return m.say(EntryError, "could not save the configuration: "+err.Error())
 		}
-		m.app.Config.Web.Enabled = on
+		m.app.Config().Web.Enabled = on
 		return m.configSaved(path, warnings, fmt.Sprintf(
 			"web.enabled = %t; this terminal serves no WebUI — start one with `boop --web`", on))
 	case "port":
@@ -181,7 +181,7 @@ func (m *Model) configSetWeb(sub, arg string) tea.Cmd {
 		if err != nil {
 			return m.say(EntryError, "could not save the configuration: "+err.Error())
 		}
-		m.app.Config.Web.Port = n
+		m.app.Config().Web.Port = n
 		return m.configSaved(path, warnings, fmt.Sprintf(
 			"web.port is now %d; restart `boop --web` to pick it up", n))
 	case "listen":
@@ -195,7 +195,7 @@ func (m *Model) configSetWeb(sub, arg string) tea.Cmd {
 		if err != nil {
 			return m.say(EntryError, "could not save the configuration: "+err.Error())
 		}
-		m.app.Config.Web.Listen = addr
+		m.app.Config().Web.Listen = addr
 		return m.configSaved(path, warnings, fmt.Sprintf(
 			"web.listen is now %s; restart `boop --web` to pick it up", addr))
 	default:

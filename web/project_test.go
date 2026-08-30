@@ -40,7 +40,7 @@ func newProjectServer(t *testing.T, files map[string]string) (*Server, string) {
 
 	srv := newTestServer(t, func(o *Options) {
 		o.App = application
-		o.Config = application.Config
+		o.Config = application.Config()
 	})
 	return srv, root
 }

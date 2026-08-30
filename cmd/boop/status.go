@@ -139,18 +139,18 @@ func gatherStatus(ctx context.Context, a *app.App, providerName, model string) s
 	info := statusInfo{
 		Version: version.Get(),
 		Project: a.Workspace.Root(),
-		Mode:    string(a.Config.Execution.Mode),
+		Mode:    string(a.Config().Execution.Mode),
 		Agents: agentStatusInfo{
-			Enabled: a.Config.Agents.Enabled,
-			Max:     a.Config.Agents.Max,
+			Enabled: a.Config().Agents.Enabled,
+			Max:     a.Config().Agents.Max,
 		},
-		Network:  a.Config.Network.Enabled,
+		Network:  a.Config().Network.Enabled,
 		Session:  "none",
 		Warnings: a.Warnings,
 	}
 
 	info.Provider.Name = providerName
-	if pc, ok := a.Config.Providers[providerName]; ok {
+	if pc, ok := a.Config().Providers[providerName]; ok {
 		info.Provider.BaseURL = pc.BaseURL
 	}
 

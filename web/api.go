@@ -190,11 +190,11 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		AuthEnabled:     s.auth.Enabled(),
 		TrustedProxy:    s.web.TrustedProxyHeaders,
 		AllowedOrigins:  append([]string(nil), s.web.AllowedOrigins...),
-		Provider:        s.cfg.Provider,
-		Model:           s.cfg.Model,
-		Mode:            string(s.cfg.Execution.Mode),
-		AgentsEnabled:   s.cfg.Agents.Enabled,
-		NetworkEnabled:  s.cfg.Network.Enabled,
+		Provider:        s.conf().Provider,
+		Model:           s.conf().Model,
+		Mode:            string(s.conf().Execution.Mode),
+		AgentsEnabled:   s.conf().Agents.Enabled,
+		NetworkEnabled:  s.conf().Network.Enabled,
 		BundleEmbedded:  bundled,
 		CurrentSession:  current,
 		Clients:         s.hub.count(),
@@ -244,8 +244,12 @@ type configResponse struct {
 	Path string `json:"path,omitempty"`
 	// Warnings are config.Validate's non-fatal findings.
 	Warnings []string `json:"warnings,omitempty"`
-	// RestartRequired reports that a saved change is not yet in effect.
+	// RestartRequired reports that some saved change is not yet in effect.
 	RestartRequired bool `json:"restart_required"`
+	// RestartFields names the setting groups that changed but need a restart
+	// to take effect (the web bind address, the logger, outbound web access,
+	// the provider definitions). Empty means the change was applied live.
+	RestartFields []string `json:"restart_fields,omitempty"`
 }
 
 // secretRef names one credential source without disclosing it.
@@ -279,26 +283,31 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getConfig(w http.ResponseWriter) {
-	warnings, _ := s.cfg.Validate()
+	warnings, _ := s.conf().Validate()
 	s.mu.Lock()
 	restart := s.restart
 	s.mu.Unlock()
 	path, _ := config.ConfigFile()
 	writeJSON(w, http.StatusOK, configResponse{
-		Config:          redactConfig(s.cfg),
-		Secrets:         s.secretRefs(s.cfg),
+		Config:          redactConfig(s.conf()),
+		Secrets:         s.secretRefs(s.conf()),
 		Path:            path,
 		Warnings:        warnings,
 		RestartRequired: restart,
 	})
 }
 
-// putConfig validates and persists a replacement configuration.
+// putConfig validates, persists and applies a replacement configuration.
 //
-// The running process is not mutated. The runtime reads *config.Config from
-// many goroutines without synchronisation, so rewriting it underneath them
-// would be a data race, and a half-applied configuration is worse than one
-// that takes effect on restart. The response says so explicitly.
+// The change is applied to the running process through App.ApplyConfig, which
+// swaps the configuration behind an atomic pointer (so the many goroutines that
+// read it never see a torn value) and re-derives the permission policy. Most
+// settings — execution mode, the permission rules, the active provider and
+// model, the loop bounds, the agent limits — take effect on the next turn.
+// A handful are wired at construction and cannot move without a restart: the
+// web bind address and auth, the logger, outbound web access, and the provider
+// definitions. Those are reported back in `restart_fields`, and
+// `restart_required` is true only when one of them actually changed.
 func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 	var req configRequest
 	if !decodeBody(w, r, &req) {
@@ -309,7 +318,7 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	incoming := req.Config
-	restoreRedactedHeaders(incoming, s.cfg)
+	restoreRedactedHeaders(incoming, s.conf())
 
 	warnings, err := incoming.Validate()
 	if err != nil {
@@ -322,14 +331,33 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 	if req.Persist != nil {
 		persist = *req.Persist
 	}
+
+	var (
+		restartFields   []string
+		restartRequired bool
+	)
 	if persist {
 		if err := s.saveConfig(incoming); err != nil {
 			writeError(w, http.StatusInternalServerError, codeInternal, "the configuration is valid but could not be saved: "+err.Error())
 			return
 		}
-		s.mu.Lock()
-		s.restart = true
-		s.mu.Unlock()
+		// Publish to the server's own view first, then to the runtime. With a
+		// runtime attached, ApplyConfig swaps its atomic pointer and re-derives
+		// the permission policy, then reports which settings still need a
+		// restart. Without a runtime there is nothing live to update, so the
+		// change waits for one.
+		s.cfg.Store(incoming)
+		if s.app != nil {
+			restartFields = s.app.ApplyConfig(incoming)
+			restartRequired = len(restartFields) > 0
+		} else {
+			restartRequired = true
+		}
+		if restartRequired {
+			s.mu.Lock()
+			s.restart = true
+			s.mu.Unlock()
+		}
 	}
 
 	path, _ := config.ConfigFile()
@@ -338,7 +366,8 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 		Secrets:         s.secretRefs(incoming),
 		Path:            path,
 		Warnings:        warnings,
-		RestartRequired: persist,
+		RestartRequired: restartRequired,
+		RestartFields:   restartFields,
 	})
 }
 
@@ -550,20 +579,20 @@ func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
 	// A live probe touches the network, so it happens only when asked for.
 	live := r.URL.Query().Get("check") == "true"
 
-	names := make([]string, 0, len(s.cfg.Providers))
-	for name := range s.cfg.Providers {
+	names := make([]string, 0, len(s.conf().Providers))
+	for name := range s.conf().Providers {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 
-	resp := providersResponse{Active: s.cfg.Provider, Providers: make([]providerInfo, 0, len(names))}
+	resp := providersResponse{Active: s.conf().Provider, Providers: make([]providerInfo, 0, len(names))}
 	var health map[string]error
 	if s.app != nil && s.app.Router != nil {
 		health = s.app.Router.HealthSnapshot()
 		resp.Warnings = s.app.Warnings
 	}
 	for _, name := range names {
-		pc := s.cfg.Providers[name]
+		pc := s.conf().Providers[name]
 		info := providerInfo{
 			Name:      name,
 			Type:      pc.Type,
@@ -571,7 +600,7 @@ func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
 			APIKeyEnv: pc.APIKeyEnv,
 			APIKeySet: pc.APIKeyEnv != "" && s.envSet(pc.APIKeyEnv),
 			Disabled:  pc.Disabled,
-			Active:    name == s.cfg.Provider,
+			Active:    name == s.conf().Provider,
 			Healthy:   true,
 		}
 		if s.app != nil && s.app.Router != nil {
@@ -619,7 +648,7 @@ func (s *Server) handleTools(w http.ResponseWriter, r *http.Request) {
 	if defs == nil {
 		defs = []provider.ToolDefinition{}
 	}
-	writeJSON(w, http.StatusOK, toolsResponse{Tools: defs, Mode: string(s.cfg.Execution.Mode)})
+	writeJSON(w, http.StatusOK, toolsResponse{Tools: defs, Mode: string(s.conf().Execution.Mode)})
 }
 
 // ---------------------------------------------------------------------------
@@ -750,8 +779,8 @@ func (s *Server) handleSession(w http.ResponseWriter, r *http.Request) {
 	} else {
 		sess, err = s.app.Sessions.Create(r.Context(), session.CreateOptions{
 			ProjectPath: projectPath,
-			Provider:    firstNonEmpty(req.Provider, s.cfg.Provider),
-			Model:       firstNonEmpty(req.Model, s.cfg.Model),
+			Provider:    firstNonEmpty(req.Provider, s.conf().Provider),
+			Model:       firstNonEmpty(req.Model, s.conf().Model),
 			Title:       req.Title,
 		})
 		if err != nil {
@@ -865,7 +894,7 @@ func (s *Server) listApprovals(w http.ResponseWriter) {
 	resp := approvalsResponse{
 		Pending: s.broker.Pending(),
 		Grants:  s.broker.SessionGrants(),
-		Mode:    string(s.cfg.Execution.Mode),
+		Mode:    string(s.conf().Execution.Mode),
 	}
 	if resp.Pending == nil {
 		resp.Pending = []permissions.PendingApproval{}
@@ -1137,8 +1166,8 @@ func (s *Server) resolveSession(ctx context.Context, requested string) (string, 
 	}
 	sess, err := s.app.Sessions.Create(ctx, session.CreateOptions{
 		ProjectPath: projectPath,
-		Provider:    s.cfg.Provider,
-		Model:       s.cfg.Model,
+		Provider:    s.conf().Provider,
+		Model:       s.conf().Model,
 	})
 	if err != nil {
 		return "", fmt.Errorf("cannot start a session: %w", err)
@@ -1192,8 +1221,8 @@ func (s *Server) execTurn(ctx context.Context, sessionID string, req messageRequ
 		return nil, fmt.Errorf("cannot record the prompt: %w", err)
 	}
 
-	selProvider := firstNonEmpty(req.Provider, s.cfg.Provider)
-	selModel := firstNonEmpty(req.Model, s.cfg.Model)
+	selProvider := firstNonEmpty(req.Provider, s.conf().Provider)
+	selModel := firstNonEmpty(req.Model, s.conf().Model)
 
 	messages := make([]provider.Message, 0, len(history)+2)
 	messages = append(messages, provider.Message{
@@ -1311,9 +1340,9 @@ func (s *Server) systemPrompt(providerName, model string) string {
 		WorkingDir:  root,
 		Provider:    providerName,
 		Model:       model,
-		Mode:        string(s.cfg.Execution.Mode),
+		Mode:        string(s.conf().Execution.Mode),
 		Tools:       s.app.Tools.Names(),
-		NetworkOn:   s.cfg.Network.Enabled,
+		NetworkOn:   s.conf().Network.Enabled,
 		ProjectInfo: memory,
 	}.Render(s.app.SystemPrompt())
 }

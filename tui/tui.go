@@ -175,8 +175,8 @@ func openSession(ctx context.Context, application *app.App, resumeID string) (*s
 
 	sess, err := application.Sessions.Create(ctx, session.CreateOptions{
 		ProjectPath: application.Workspace.Root(),
-		Provider:    application.Config.Provider,
-		Model:       application.Config.Model,
+		Provider:    application.Config().Provider,
+		Model:       application.Config().Model,
 	})
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("cannot start a session: %w", err)
@@ -195,11 +195,11 @@ func buildSystemPrompt(application *app.App) string {
 		Arch:        runtime.GOARCH,
 		Shell:       os.Getenv("SHELL"),
 		WorkingDir:  application.Workspace.Root(),
-		Provider:    application.Config.Provider,
-		Model:       application.Config.Model,
-		Mode:        string(application.Config.Execution.Mode),
+		Provider:    application.Config().Provider,
+		Model:       application.Config().Model,
+		Mode:        string(application.Config().Execution.Mode),
 		Tools:       application.Tools.Names(),
-		NetworkOn:   application.Config.Network.Enabled,
+		NetworkOn:   application.Config().Network.Enabled,
 		ProjectInfo: memory,
 	}.Render(application.SystemPrompt())
 }
@@ -231,7 +231,7 @@ func (m *Model) greet(application *app.App, resumed, verbose bool) {
 				"%d provider(s) unavailable — /status for details", n)})
 		}
 	}
-	if application.Config.Network.Enabled {
+	if application.Config().Network.Enabled {
 		m.transcript.Append(Entry{Kind: EntrySystem,
 			Text: "outbound web access is ON: fetches and searches leave this machine"})
 	}

@@ -322,8 +322,8 @@ func (s *Server) prepareTurn(ctx context.Context, req messageRequest, extra []up
 		}
 	}
 
-	providerName := firstNonEmpty(req.Provider, s.cfg.Provider)
-	model := firstNonEmpty(req.Model, s.cfg.Model)
+	providerName := firstNonEmpty(req.Provider, s.conf().Provider)
+	model := firstNonEmpty(req.Model, s.conf().Model)
 	degrade := req.Degrade == nil || *req.Degrade
 
 	opts := documents.Options{

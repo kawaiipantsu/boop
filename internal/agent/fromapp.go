@@ -16,10 +16,10 @@ import (
 // should treat as "delegation is off" rather than as an error — a nil
 // Coordinator is not usable, so check before calling.
 func NewFromApp(a *app.App, sessionID string) *Coordinator {
-	if a == nil || !a.Config.Agents.Enabled {
+	if a == nil || !a.Config().Agents.Enabled {
 		return nil
 	}
-	sel := provider.Selection{Provider: a.Config.Provider, Model: a.Config.Model}
+	sel := provider.Selection{Provider: a.Config().Provider, Model: a.Config().Model}
 	return NewCoordinator(CoordinatorOptions{
 		Runner: &LoopRunner{Loops: a.NewLoop, Tools: a.Tools},
 		Planner: &Planner{Decomposer: &ModelDecomposer{
@@ -31,8 +31,8 @@ func NewFromApp(a *app.App, sessionID string) *Coordinator {
 		},
 		Bus:       a.Bus,
 		SessionID: sessionID,
-		Provider:  a.Config.Provider,
-		Model:     a.Config.Model,
-		Max:       a.Config.Agents.Max,
+		Provider:  a.Config().Provider,
+		Model:     a.Config().Model,
+		Max:       a.Config().Agents.Max,
 	})
 }

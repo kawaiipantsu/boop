@@ -85,6 +85,15 @@ Changes to these files can affect production; treat them with deliberate intent.
   detected `format` (rewrite) is `filesystem.write`; an explicit `command`
   override always goes through the risk classifier. `gofmt -l` exits 0 with a
   file list, so format-check treats non-empty stdout as "needs formatting".
+- The live configuration lives behind `config.Holder` (an `atomic.Pointer`).
+  `App.Config` went from a field to a method; readers take a snapshot, and
+  `App.ApplyConfig` swaps a fresh `*Config` and re-derives the permission policy
+  via the already-synchronised `Evaluator.SetPolicy`. `PUT /api/config` calls it
+  and reports `restart_fields` for the settings baked in at construction (web
+  bind, logger, `network.enabled`, provider definitions, `command_timeout`). The
+  TUI still mutates its snapshot in place — pre-existing, single-loop, out of
+  scope for #6. `web.Server` keeps its own Holder because `Options.Config` may
+  deliberately differ from `App.Config()`; a live PUT writes both.
 
 ## Current Work
 

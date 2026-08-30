@@ -252,21 +252,21 @@ func (m *Model) hints() string {
 // ---------------------------------------------------------------------------
 
 func (m *Model) providerModel() string {
-	if m.app == nil || m.app.Config == nil {
+	if m.app == nil || m.app.Config() == nil {
 		return "no provider"
 	}
-	model := m.app.Config.Model
+	model := m.app.Config().Model
 	if model == "" {
 		model = "default"
 	}
-	return m.app.Config.Provider + "/" + model
+	return m.app.Config().Provider + "/" + model
 }
 
 func (m *Model) modeName() string {
-	if m.app == nil || m.app.Config == nil {
+	if m.app == nil || m.app.Config() == nil {
 		return string(permissions.ModeConfirm)
 	}
-	return string(m.app.Config.Execution.Mode)
+	return string(m.app.Config().Execution.Mode)
 }
 
 // agentCount is the number of agents currently occupying a concurrency slot.
@@ -278,7 +278,7 @@ func (m *Model) modeName() string {
 func (m *Model) agentCount() int { return m.agentsActive }
 
 func (m *Model) networkOn() bool {
-	return m.app != nil && m.app.Config != nil && m.app.Config.Network.Enabled
+	return m.app != nil && m.app.Config() != nil && m.app.Config().Network.Enabled
 }
 
 func (m *Model) workingDir() string {

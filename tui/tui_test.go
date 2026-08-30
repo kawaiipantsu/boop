@@ -105,7 +105,7 @@ func TestOpenSessionReportsAMissingSession(t *testing.T) {
 func TestBuildSystemPromptCarriesTheRuntimeContext(t *testing.T) {
 	application, _ := newTestApp(t, nil)
 	prompt := buildSystemPrompt(application)
-	for _, want := range []string{application.Config.Provider, application.Workspace.Root(), "run"} {
+	for _, want := range []string{application.Config().Provider, application.Workspace.Root(), "run"} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("system prompt is missing %q", want)
 		}
@@ -192,11 +192,11 @@ func TestProviderCommandRejectsAnUnknownName(t *testing.T) {
 	m := newModel(context.Background(), application, approver, "s", "", "", nil)
 	send(m, tea.WindowSizeMsg{Width: 100, Height: 30})
 
-	before := application.Config.Provider
+	before := application.Config().Provider
 	typeText(m, "/provider nonesuch")
 	send(m, key("enter"))
-	if application.Config.Provider != before {
-		t.Fatalf("an unknown provider was accepted: %q", application.Config.Provider)
+	if application.Config().Provider != before {
+		t.Fatalf("an unknown provider was accepted: %q", application.Config().Provider)
 	}
 	if !strings.Contains(renderText(m.transcript, 100), "no provider named") {
 		t.Fatalf("transcript = %s", renderText(m.transcript, 100))
@@ -213,8 +213,8 @@ func TestPermissionsCommandSwitchesMode(t *testing.T) {
 	if application.Evaluator.Policy().Mode != permissions.ModeAuto {
 		t.Fatalf("mode = %q", application.Evaluator.Policy().Mode)
 	}
-	if application.Config.Execution.Mode != permissions.ModeAuto {
-		t.Fatalf("config mode = %q", application.Config.Execution.Mode)
+	if application.Config().Execution.Mode != permissions.ModeAuto {
+		t.Fatalf("config mode = %q", application.Config().Execution.Mode)
 	}
 
 	m.transcript.Clear()
