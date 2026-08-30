@@ -251,6 +251,7 @@ boop                          # 🖥️  interactive TUI
 boop "<prompt>"               # 💬  prompt, then stay interactive
 boop --no-tui --prompt "..."  # 🤖  plain CLI, for scripts and CI
 boop --web --port 8585        # 🌐  local WebUI
+boop status                   # 📊  provider health and runtime status
 boop version                  # ℹ️   build metadata
 ```
 
@@ -261,6 +262,7 @@ boop version                  # ℹ️   build metadata
 | `--provider <name>` | Provider to use (`ollama`, `lmstudio`, `lemonade`, `openai`, `anthropic`, `xai`) |
 | `--model <id>` | Model to use |
 | `--mode confirm\|auto` | Ask before privileged actions, or run approved categories unattended |
+| `--status` | Print status summary and provider health, then exit |
 | `--no-tui` | Plain CLI mode |
 | `--web` / `--listen` / `--port` | Local WebUI |
 | `--log-level` | `trace` `debug` `info` `warn` `error` |

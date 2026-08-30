@@ -27,6 +27,28 @@ func TestVersionFlag(t *testing.T) {
 	}
 }
 
+func TestStatusSubcommand(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if err := run([]string{"status"}, &out, &errOut); err != nil {
+		t.Fatalf("run(status) = %v, want nil", err)
+	}
+	for _, want := range []string{"boop", "provider", "model", "mode"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("status output missing %q:\n%s", want, out.String())
+		}
+	}
+}
+
+func TestStatusFlag(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if err := run([]string{"--status"}, &out, &errOut); err != nil {
+		t.Fatalf("run(--status) = %v, want nil", err)
+	}
+	if !strings.Contains(out.String(), "provider") {
+		t.Errorf("status output missing provider:\n%s", out.String())
+	}
+}
+
 // Modes that are still stubs must say which milestone they belong to rather
 // than failing opaquely.
 //

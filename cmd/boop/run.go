@@ -27,6 +27,7 @@ type options struct {
 	// deliberately verbose and must never be needed for normal local work.
 	dangerouslyUnrestricted bool
 	showVersion             bool
+	showStatus              bool
 	verbose                 bool
 	// allowInsecureBind permits binding beyond loopback with auth disabled.
 	// It is deliberately explicit: §23 says never assume a LAN is trusted.
@@ -44,6 +45,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 			return nil
 		case "prep":
 			return runPrep(context.Background(), args[1:], stdout, stderr)
+		case "status":
+			return runStatus(context.Background(), args[1:], stdout, stderr)
 		}
 	}
 	opts, err := parse(args, stderr)
@@ -53,6 +56,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if opts.showVersion {
 		fmt.Fprintln(stdout, version.Get())
 		return nil
+	}
+	if opts.showStatus {
+		return runStatus(context.Background(), nil, stdout, stderr)
 	}
 	return dispatch(opts, stdout, stderr)
 }
@@ -75,6 +81,7 @@ func parse(args []string, stderr io.Writer) (options, error) {
 	fs.BoolVar(&opts.dangerouslyUnrestricted, "dangerously-unrestricted", false,
 		"skip all permission confirmation (not required for normal local development)")
 	fs.BoolVar(&opts.showVersion, "version", false, "print version and exit")
+	fs.BoolVar(&opts.showStatus, "status", false, "print status summary and provider health, then exit")
 	fs.BoolVar(&opts.verbose, "verbose", false, "report tool activity and timings on stderr")
 	fs.BoolVar(&opts.verbose, "v", false, "shorthand for --verbose")
 	fs.BoolVar(&opts.allowInsecureBind, "allow-insecure-bind", false,
@@ -137,6 +144,7 @@ usage:
   boop <prompt...>                  submit a prompt, then continue interactively
   boop --prompt "<text>"            same, when the text would confuse flag parsing
   boop prep                         inspect the project and write Boop.md
+  boop status                       print provider health and runtime status
   boop version                      print build metadata
 
 examples:
