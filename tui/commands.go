@@ -104,6 +104,7 @@ var commandSpecs = []commandSpec{
 	{Name: "search", Args: "<pattern>", Summary: "search the workspace (use the model for web search)", Status: cmdReady},
 
 	{Name: "context", Args: "[add <path>|clear]", Summary: "show or change what is sent with each request", Status: cmdReady},
+	{Name: "attach", Args: "<path>", Summary: "attach a document or image to the conversation", Status: cmdReady},
 	{Name: "permissions", Args: "[mode confirm|auto] [clear]", Summary: "show or adjust the permission policy", Status: cmdReady},
 
 	{Name: "status", Summary: "runtime, provider health and session state", Status: cmdReady},

@@ -262,6 +262,7 @@ boop version                  # ℹ️   build metadata
 |:--|:--|
 | `--provider <name>` | Provider to use (`ollama`, `lmstudio`, `lemonade`, `openai`, `anthropic`, `xai`) |
 | `--model <id>` | Model to use |
+| `--attach <path>` / `-a` | Attach a document or image to the prompt (PDF, DOCX, XLSX, images) |
 | `--mode confirm\|auto` | Ask before privileged actions, or run approved categories unattended |
 | `--no-tui` | Plain CLI mode |
 | `--web` / `--listen` / `--port` | Local WebUI |
@@ -272,10 +273,11 @@ boop version                  # ℹ️   build metadata
 
 ```
 /prep      🔎  inspect the project and write Boop.md
+/attach    📎  attach document/image   /context    📋  manage context
 /model     🧠  switch model          /provider   🔌  switch provider
 /agents    🤖  manage agents          /permissions 🔐  review policy
-/context   📋  manage context         /session    💾  save · load · list
-/stats     📊  tokens and cost        /web        🌐  toggle the WebUI
+/session   💾  save · load · list     /stats      📊  tokens and cost
+/web       🌐  toggle the WebUI
 ```
 
 <br/>

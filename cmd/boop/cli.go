@@ -12,6 +12,7 @@ import (
 	"github.com/kawaiipantsu/boop/internal/agent"
 	"github.com/kawaiipantsu/boop/internal/app"
 	"github.com/kawaiipantsu/boop/internal/config"
+	"github.com/kawaiipantsu/boop/internal/documents"
 	"github.com/kawaiipantsu/boop/internal/permissions"
 	"github.com/kawaiipantsu/boop/internal/provider"
 	"github.com/kawaiipantsu/boop/internal/session"
@@ -78,9 +79,32 @@ func runPlainCLI(ctx context.Context, opts options, stdout, stderr io.Writer) er
 		ProjectInfo: memory,
 	}.Render(application.SystemPrompt())
 
+	var userParts []provider.ContentPart
+	for _, attachPath := range opts.attachments {
+		doc, err := documents.Load(attachPath, documents.Options{})
+		if err != nil {
+			return fmt.Errorf("attach %q: %w", attachPath, err)
+		}
+		if opts.verbose {
+			fmt.Fprintf(stderr, "boop: attached %s (%s, %d bytes)\n", doc.Filename, doc.Type.MIMEType, doc.Size)
+		}
+		userParts = append(userParts, doc.Parts...)
+	}
+	if len(userParts) > 0 && prompt != "" {
+		userParts = append(userParts, provider.ContentPart{
+			Kind: provider.PartText,
+			Text: prompt,
+		})
+	}
+
+	userMsg := provider.Message{Role: provider.RoleUser, Content: prompt}
+	if len(userParts) > 0 {
+		userMsg.Parts = userParts
+	}
+
 	history := []provider.Message{
 		{Role: provider.RoleSystem, Content: system},
-		{Role: provider.RoleUser, Content: prompt},
+		userMsg,
 	}
 	if _, err := application.Sessions.AppendMessage(ctx, sess.ID, history[1]); err != nil {
 		fmt.Fprintln(stderr, "boop: could not record the prompt:", err)

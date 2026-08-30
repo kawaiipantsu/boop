@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/kawaiipantsu/boop/internal/documents"
 	"github.com/kawaiipantsu/boop/internal/provider"
 	"github.com/kawaiipantsu/boop/internal/session"
 )
@@ -201,4 +202,27 @@ func isBinary(data []byte) bool {
 		head = head[:8192]
 	}
 	return bytes.IndexByte(head, 0) >= 0
+}
+
+// attachCmd implements /attach <path> (§27).
+func (m *Model) attachCmd(cmd Command) tea.Cmd {
+	path := strings.TrimSpace(cmd.Rest)
+	if path == "" {
+		return m.say(EntryError, "usage: /attach <path>")
+	}
+	if m.app == nil || m.app.Workspace == nil {
+		return m.say(EntryError, "no runtime is attached, so there is no workspace to read from")
+	}
+
+	abs, err := m.app.Workspace.Resolve(path)
+	if err != nil {
+		return m.say(EntryError, "cannot attach "+path+": "+err.Error())
+	}
+
+	doc, err := documents.Load(abs, documents.Options{})
+	if err != nil {
+		return m.say(EntryError, "cannot attach "+path+": "+err.Error())
+	}
+
+	return m.say(EntrySystem, fmt.Sprintf("attached %s (%s, %d bytes)", doc.Filename, doc.Type.MIMEType, doc.Size))
 }

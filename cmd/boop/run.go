@@ -29,9 +29,22 @@ type options struct {
 	showVersion             bool
 	showStatus              bool
 	verbose                 bool
+	attachments             []string
 	// allowInsecureBind permits binding beyond loopback with auth disabled.
 	// It is deliberately explicit: §23 says never assume a LAN is trusted.
 	allowInsecureBind bool
+}
+
+// stringSliceFlag allows a string flag to be repeated on the command line.
+type stringSliceFlag []string
+
+func (s *stringSliceFlag) String() string {
+	return strings.Join(*s, ", ")
+}
+
+func (s *stringSliceFlag) Set(val string) error {
+	*s = append(*s, val)
+	return nil
 }
 
 // run parses arguments and dispatches to a startup mode.
@@ -77,6 +90,9 @@ func parse(args []string, stderr io.Writer) (options, error) {
 	fs.BoolVar(&opts.gui, "gui", false, "launch the native GUI")
 	fs.StringVar(&opts.listen, "listen", "", "WebUI bind address")
 	fs.IntVar(&opts.port, "port", 0, "WebUI port")
+	var attach stringSliceFlag
+	fs.Var(&attach, "attach", "attach a document or image to the prompt (repeatable)")
+	fs.Var(&attach, "a", "shorthand for --attach")
 	fs.StringVar(&opts.logLevel, "log-level", "", "trace, debug, info, warn, error")
 	fs.BoolVar(&opts.dangerouslyUnrestricted, "dangerously-unrestricted", false,
 		"skip all permission confirmation (not required for normal local development)")
@@ -95,6 +111,7 @@ func parse(args []string, stderr io.Writer) (options, error) {
 	if err := fs.Parse(args); err != nil {
 		return opts, err
 	}
+	opts.attachments = attach
 	// Remaining arguments form a bare prompt, so an unquoted request works:
 	//   boop serve this folder up via http
 	// Flags are still honoured because flag parsing stops at the first

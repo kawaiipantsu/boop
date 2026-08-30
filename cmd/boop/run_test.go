@@ -97,3 +97,19 @@ func TestModeFlagIsParsedBeforeBarePrompt(t *testing.T) {
 		t.Errorf("prompt = %q, want %q", got.prompt, "deploy the thing")
 	}
 }
+
+func TestAttachFlagParsing(t *testing.T) {
+	got, err := parse([]string{"--attach", "doc1.pdf", "-a", "doc2.png", "summarise this"}, io.Discard)
+	if err != nil {
+		t.Fatalf("parse() = %v, want nil", err)
+	}
+	if len(got.attachments) != 2 {
+		t.Fatalf("attachments length = %d, want 2", len(got.attachments))
+	}
+	if got.attachments[0] != "doc1.pdf" || got.attachments[1] != "doc2.png" {
+		t.Errorf("attachments = %v, want [doc1.pdf, doc2.png]", got.attachments)
+	}
+	if got.prompt != "summarise this" {
+		t.Errorf("prompt = %q, want 'summarise this'", got.prompt)
+	}
+}

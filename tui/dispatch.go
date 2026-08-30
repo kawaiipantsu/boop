@@ -61,6 +61,8 @@ func (m *Model) dispatch(cmd Command) tea.Cmd {
 		return m.say(EntrySystem, m.statsText())
 	case "context":
 		return m.contextCmd(cmd)
+	case "attach":
+		return m.attachCmd(cmd)
 	case "tokens":
 		return m.tokensCmd()
 	case "prep", "init":
