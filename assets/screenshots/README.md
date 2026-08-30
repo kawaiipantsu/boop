@@ -11,6 +11,7 @@ These are real terminal captures, not mock-ups.
 ./assets/screenshot.sh tui-main "boop — main view"
 COLS=120 ROWS=40 ./assets/screenshot.sh tui-wide "boop — wide terminal"
 ./assets/screenshot.sh tui-approval "boop — approval prompt" /tmp/keys.txt
+./assets/screenshot.sh tui-config-editor "boop — /config editor" /tmp/config-editor-keys.txt
 ```
 
 A keystroke script drives the UI before capture, one instruction per line:
