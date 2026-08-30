@@ -50,6 +50,8 @@ var BuiltinToolNames = map[string]bool{
 	"run":       true,
 	"test":      true,
 	"build":     true,
+	"lint":      true,
+	"format":    true,
 	"git":       true,
 	"http":      true,
 	"fetch":     true,

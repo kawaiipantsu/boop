@@ -100,8 +100,10 @@ func (t *TestTool) Execute(ctx context.Context, call Call) (Result, error) {
 type execTaskKind string
 
 const (
-	execTaskTest  execTaskKind = "test"
-	execTaskBuild execTaskKind = "build"
+	execTaskTest   execTaskKind = "test"
+	execTaskBuild  execTaskKind = "build"
+	execTaskLint   execTaskKind = "lint"
+	execTaskFormat execTaskKind = "format"
 )
 
 // execDetection is a project command chosen by detection.
@@ -247,10 +249,16 @@ func execRunTask(ctx context.Context, cfg execTaskConfig, call Call) (Result, er
 }
 
 func execTaskParticiple(kind execTaskKind) string {
-	if kind == execTaskBuild {
+	switch kind {
+	case execTaskBuild:
 		return "built"
+	case execTaskLint:
+		return "linted"
+	case execTaskFormat:
+		return "formatted"
+	default:
+		return "tested"
 	}
-	return "tested"
 }
 
 // execFormatTaskResult renders a task outcome, leading with the verdict and
@@ -287,13 +295,44 @@ func execDetectTask(root string, kind execTaskKind) (execDetection, bool) {
 				Reason:    filepath.Base(path) + " defines a " + target + " target",
 			}, true
 		}
+		var alts []string
+		switch kind {
+		case execTaskLint:
+			alts = []string{"vet", "staticcheck", "check"}
+		case execTaskFormat:
+			alts = []string{"fmt", "gofmt"}
+		case execTaskTest:
+			alts = []string{"tests", "check", "test-unit"}
+		case execTaskBuild:
+			alts = []string{"compile", "all"}
+		}
+		for _, alt := range alts {
+			if targets[alt] {
+				return execDetection{
+					Ecosystem: "make",
+					Command:   "make " + alt,
+					Reason:    filepath.Base(path) + " defines a " + alt + " target",
+				}, true
+			}
+		}
 	}
 
 	if execFileExists(filepath.Join(root, "go.mod")) {
-		if kind == execTaskBuild {
+		switch kind {
+		case execTaskBuild:
 			return execDetection{Ecosystem: "go", Command: "go build ./...", Reason: "go.mod present"}, true
+		case execTaskLint:
+			for _, f := range []string{".golangci.yml", ".golangci.yaml", ".golangci.toml", ".golangci.json"} {
+				if execFileExists(filepath.Join(root, f)) {
+					return execDetection{Ecosystem: "golangci-lint", Command: "golangci-lint run", Reason: f + " present"}, true
+				}
+			}
+			return execDetection{Ecosystem: "go", Command: "go vet ./...", Reason: "go.mod present"}, true
+		case execTaskFormat:
+			return execDetection{Ecosystem: "gofmt", Command: "gofmt -w .", Reason: "go.mod present"}, true
+		default:
+			return execDetection{Ecosystem: "go", Command: "go test ./...", Reason: "go.mod present"}, true
 		}
-		return execDetection{Ecosystem: "go", Command: "go test ./...", Reason: "go.mod present"}, true
 	}
 
 	if det, ok := execDetectNode(root, kind); ok {
@@ -301,10 +340,16 @@ func execDetectTask(root string, kind execTaskKind) (execDetection, bool) {
 	}
 
 	if execFileExists(filepath.Join(root, "Cargo.toml")) {
-		if kind == execTaskBuild {
+		switch kind {
+		case execTaskBuild:
 			return execDetection{Ecosystem: "cargo", Command: "cargo build", Reason: "Cargo.toml present"}, true
+		case execTaskLint:
+			return execDetection{Ecosystem: "cargo", Command: "cargo clippy", Reason: "Cargo.toml present"}, true
+		case execTaskFormat:
+			return execDetection{Ecosystem: "cargo", Command: "cargo fmt", Reason: "Cargo.toml present"}, true
+		default:
+			return execDetection{Ecosystem: "cargo", Command: "cargo test", Reason: "Cargo.toml present"}, true
 		}
-		return execDetection{Ecosystem: "cargo", Command: "cargo test", Reason: "Cargo.toml present"}, true
 	}
 
 	if det, ok := execDetectPython(root, kind); ok {
@@ -330,13 +375,36 @@ func execDetectPython(root string, kind execTaskKind) (execDetection, bool) {
 	if marker == "" {
 		return execDetection{}, false
 	}
-	if kind == execTaskBuild {
+	var pyproj string
+	if data, err := os.ReadFile(filepath.Join(root, "pyproject.toml")); err == nil {
+		pyproj = string(data)
+	}
+
+	switch kind {
+	case execTaskBuild:
 		if marker == "pyproject.toml" {
 			return execDetection{Ecosystem: "python", Command: "python -m build", Reason: "pyproject.toml present"}, true
 		}
 		return execDetection{}, false
+	case execTaskLint:
+		if strings.Contains(pyproj, "[tool.ruff") {
+			return execDetection{Ecosystem: "python", Command: "ruff check .", Reason: "pyproject.toml defines ruff"}, true
+		}
+		if strings.Contains(pyproj, "[tool.mypy") {
+			return execDetection{Ecosystem: "python", Command: "mypy .", Reason: "pyproject.toml defines mypy"}, true
+		}
+		return execDetection{Ecosystem: "python", Command: "flake8", Reason: marker + " present"}, true
+	case execTaskFormat:
+		if strings.Contains(pyproj, "[tool.ruff") {
+			return execDetection{Ecosystem: "python", Command: "ruff format .", Reason: "pyproject.toml defines ruff"}, true
+		}
+		if strings.Contains(pyproj, "[tool.black") {
+			return execDetection{Ecosystem: "python", Command: "black .", Reason: "pyproject.toml defines black"}, true
+		}
+		return execDetection{Ecosystem: "python", Command: "black .", Reason: marker + " present"}, true
+	default:
+		return execDetection{Ecosystem: "python", Command: "pytest", Reason: marker + " present"}, true
 	}
-	return execDetection{Ecosystem: "python", Command: "pytest", Reason: marker + " present"}, true
 }
 
 // execDetectNode reads package.json and only reports a command the project
@@ -353,19 +421,37 @@ func execDetectNode(root string, kind execTaskKind) (execDetection, bool) {
 	if err := json.Unmarshal(data, &pkg); err != nil {
 		return execDetection{}, false
 	}
-	script := string(kind)
-	if _, ok := pkg.Scripts[script]; !ok {
+
+	var candidates []string
+	switch kind {
+	case execTaskLint:
+		candidates = []string{"lint", "typecheck", "eslint"}
+	case execTaskFormat:
+		candidates = []string{"format", "fmt", "prettier"}
+	default:
+		candidates = []string{string(kind)}
+	}
+
+	foundScript := ""
+	for _, c := range candidates {
+		if _, ok := pkg.Scripts[c]; ok {
+			foundScript = c
+			break
+		}
+	}
+	if foundScript == "" {
 		return execDetection{}, false
 	}
+
 	manager := execNodePackageManager(root)
-	command := manager + " run " + script
-	if script == "test" && manager == "npm" {
+	command := manager + " run " + foundScript
+	if foundScript == "test" && manager == "npm" {
 		command = "npm test"
 	}
 	return execDetection{
 		Ecosystem: manager,
 		Command:   command,
-		Reason:    "package.json defines a " + script + " script",
+		Reason:    "package.json defines a " + foundScript + " script",
 	}, true
 }
 
