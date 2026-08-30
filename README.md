@@ -305,6 +305,24 @@ Models never get a shell. Every action goes through a registered, schema-driven 
 
 Every filesystem tool is confined to the workspace, enforced **after** symlink resolution — a link inside the project cannot reach outside it.
 
+### 🧩 MCP Extensibility
+
+Connect any standard Model Context Protocol (MCP) server over stdio in `config.yaml`:
+
+```yaml
+mcp:
+  servers:
+    github:
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env_passthrough: [GITHUB_TOKEN]
+    postgres:
+      command: mcp-server-postgres
+      args: ["postgresql://localhost/dev"]
+```
+
+Tools discovered from MCP servers are automatically prefixed (`<server>__<tool>`) and subject to Boop's strict permission engine.
+
 <br/>
 
 <a id="providers"></a>

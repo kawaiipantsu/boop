@@ -58,6 +58,7 @@ const (
 	// query text to a third-party search engine.
 	CatNetworkSearch    Category = "network.search"
 	CatProductionChange Category = "production.change"
+	CatMCP              Category = "mcp.call"
 )
 
 // Action is a concrete operation awaiting a permission decision.

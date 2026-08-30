@@ -29,6 +29,20 @@ type Config struct {
 	Routing     map[string]RouteTarget    `yaml:"routing,omitempty" json:"routing,omitempty"`
 	Fallback    []string                  `yaml:"fallback,omitempty" json:"fallback,omitempty"`
 	Logging     LoggingConfig             `yaml:"logging" json:"logging"`
+	MCP         MCPConfig                 `yaml:"mcp,omitempty" json:"mcp,omitempty"`
+}
+
+// MCPConfig declares Model Context Protocol (MCP) server sources.
+type MCPConfig struct {
+	Servers map[string]MCPServerConfig `yaml:"servers,omitempty" json:"servers,omitempty"`
+}
+
+// MCPServerConfig configures a single MCP stdio server.
+type MCPServerConfig struct {
+	Command        string            `yaml:"command" json:"command"`
+	Args           []string          `yaml:"args,omitempty" json:"args,omitempty"`
+	Env            map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
+	EnvPassthrough []string          `yaml:"env_passthrough,omitempty" json:"env_passthrough,omitempty"`
 }
 
 // ToolsConfig holds tool system configurations and custom user-declared tools.

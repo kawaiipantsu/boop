@@ -1,10 +1,15 @@
 package app
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/kawaiipantsu/boop/internal/config"
 	"github.com/kawaiipantsu/boop/internal/execution"
+	"github.com/kawaiipantsu/boop/internal/mcp"
 	"github.com/kawaiipantsu/boop/internal/permissions"
 	"github.com/kawaiipantsu/boop/internal/tools"
 	"github.com/kawaiipantsu/boop/internal/webclient"
@@ -95,6 +100,32 @@ func BuildTools(cfg *config.Config, deps ToolDeps) (*tools.Registry, error) {
 
 		reg.Register(tools.NewFetchTool(deps.Web))
 		reg.Register(tools.NewWebSearchTool(deps.Web))
+	}
+
+	// MCP server tools from config (§12, #31)
+	for srvName, srvCfg := range cfg.MCP.Servers {
+		if strings.TrimSpace(srvCfg.Command) == "" {
+			continue
+		}
+		var env []string
+		for k, v := range srvCfg.Env {
+			env = append(env, fmt.Sprintf("%s=%s", k, v))
+		}
+		for _, passKey := range srvCfg.EnvPassthrough {
+			if val, ok := os.LookupEnv(passKey); ok {
+				env = append(env, fmt.Sprintf("%s=%s", passKey, val))
+			}
+		}
+		client := mcp.NewClient(srvName, srvCfg.Command, srvCfg.Args, env)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := client.Start(ctx); err == nil {
+			if toolDefs, err := client.ListTools(ctx); err == nil {
+				for _, def := range toolDefs {
+					reg.Register(tools.NewMCPTool(client, srvName, def))
+				}
+			}
+		}
+		cancel()
 	}
 
 	return reg, nil
