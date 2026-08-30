@@ -26,6 +26,7 @@ func (c *Config) Validate() (warnings []string, err error) {
 	var errs []error
 
 	errs = append(errs, c.validateExecution()...)
+	errs = append(errs, c.validateTools()...)
 	errs = append(errs, c.validatePermissions()...)
 	errs = append(errs, c.validateWeb()...)
 	errs = append(errs, c.validateProviders()...)
@@ -36,6 +37,53 @@ func (c *Config) Validate() (warnings []string, err error) {
 	warnings = append(warnings, c.webWarnings()...)
 	warnings = append(warnings, c.networkWarnings()...)
 	return warnings, errors.Join(errs...)
+}
+
+// BuiltinToolNames lists the standard built-in tool names that cannot be shadowed.
+var BuiltinToolNames = map[string]bool{
+	"read":      true,
+	"write":     true,
+	"edit":      true,
+	"list":      true,
+	"find":      true,
+	"search":    true,
+	"run":       true,
+	"test":      true,
+	"build":     true,
+	"git":       true,
+	"http":      true,
+	"fetch":     true,
+	"websearch": true,
+	"attach":    true,
+}
+
+// validateTools validates user-declared custom tools in config.
+func (c *Config) validateTools() []error {
+	var errs []error
+	for name, tool := range c.Tools.Custom {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" {
+			errs = append(errs, errors.New("tools.custom: tool name must not be empty"))
+			continue
+		}
+		if BuiltinToolNames[strings.ToLower(trimmedName)] {
+			errs = append(errs, fmt.Errorf("tools.custom.%s: shadows built-in tool name", trimmedName))
+		}
+		if len(tool.Command) == 0 || strings.TrimSpace(tool.Command[0]) == "" {
+			errs = append(errs, fmt.Errorf("tools.custom.%s.command: must specify at least an executable command", trimmedName))
+		}
+		if tool.Permission.Risk != "" {
+			switch tool.Permission.Risk {
+			case permissions.RiskLow, permissions.RiskMedium, permissions.RiskHigh, permissions.RiskCritical:
+			default:
+				errs = append(errs, fmt.Errorf("tools.custom.%s.permission.risk: %q is not valid (want low, medium, high, or critical)", trimmedName, tool.Permission.Risk))
+			}
+		}
+		if tool.Timeout < 0 {
+			errs = append(errs, fmt.Errorf("tools.custom.%s.timeout: must not be negative, got %s", trimmedName, tool.Timeout))
+		}
+	}
+	return errs
 }
 
 // validateNetwork checks the outbound web access settings.

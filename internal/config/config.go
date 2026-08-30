@@ -20,6 +20,7 @@ type Config struct {
 	Model string `yaml:"model" json:"model"`
 
 	Execution   ExecutionConfig           `yaml:"execution" json:"execution"`
+	Tools       ToolsConfig               `yaml:"tools,omitempty" json:"tools,omitempty"`
 	Agents      AgentsConfig              `yaml:"agents" json:"agents"`
 	Web         WebConfig                 `yaml:"web" json:"web"`
 	Providers   map[string]ProviderConfig `yaml:"providers" json:"providers"`
@@ -28,6 +29,26 @@ type Config struct {
 	Routing     map[string]RouteTarget    `yaml:"routing,omitempty" json:"routing,omitempty"`
 	Fallback    []string                  `yaml:"fallback,omitempty" json:"fallback,omitempty"`
 	Logging     LoggingConfig             `yaml:"logging" json:"logging"`
+}
+
+// ToolsConfig holds tool system configurations and custom user-declared tools.
+type ToolsConfig struct {
+	Custom map[string]CustomToolConfig `yaml:"custom,omitempty" json:"custom,omitempty"`
+}
+
+// CustomToolConfig declares a user-defined tool invoked directly via command.
+type CustomToolConfig struct {
+	Description string               `yaml:"description" json:"description"`
+	Command     []string             `yaml:"command" json:"command"`
+	Schema      map[string]any       `yaml:"schema,omitempty" json:"schema,omitempty"`
+	Permission  CustomToolPermission `yaml:"permission,omitempty" json:"permission,omitempty"`
+	Timeout     Duration             `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+}
+
+// CustomToolPermission specifies the declared permission category and risk level.
+type CustomToolPermission struct {
+	Category permissions.Category `yaml:"category,omitempty" json:"category,omitempty"`
+	Risk     permissions.Risk     `yaml:"risk,omitempty" json:"risk,omitempty"`
 }
 
 // ExecutionConfig bounds the tool and repair loops.

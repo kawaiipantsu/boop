@@ -148,6 +148,38 @@ func TestValidateErrors(t *testing.T) {
 			}),
 			errHas: "providers.ollama.headers.Authorization",
 		},
+		{
+			name: "custom tool shadows builtin name",
+			cfg: mutate(func(c *Config) {
+				c.Tools.Custom = map[string]CustomToolConfig{
+					"read": {Command: []string{"echo", "hi"}},
+				}
+			}),
+			errHas: "tools.custom.read: shadows built-in tool name",
+		},
+		{
+			name: "custom tool empty command",
+			cfg: mutate(func(c *Config) {
+				c.Tools.Custom = map[string]CustomToolConfig{
+					"my_tool": {Command: []string{}},
+				}
+			}),
+			errHas: "tools.custom.my_tool.command",
+		},
+		{
+			name: "custom tool invalid risk level",
+			cfg: mutate(func(c *Config) {
+				c.Tools.Custom = map[string]CustomToolConfig{
+					"deploy": {
+						Command: []string{"./deploy.sh"},
+						Permission: CustomToolPermission{
+							Risk: permissions.Risk("extreme"),
+						},
+					},
+				}
+			}),
+			errHas: "tools.custom.deploy.permission.risk",
+		},
 	}
 
 	for _, tc := range tests {
