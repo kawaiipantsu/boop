@@ -62,6 +62,7 @@ var BuiltinToolNames = map[string]bool{
 	"memory":      true,
 	"todo":        true,
 	"ask":         true,
+	"checkpoint":  true,
 }
 
 // validateTools validates user-declared custom tools in config.
