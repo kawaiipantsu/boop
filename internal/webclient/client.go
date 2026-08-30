@@ -391,7 +391,7 @@ func (c *Client) do(ctx context.Context, r request) (*Response, error) {
 	if err != nil {
 		return nil, c.classifyDoErr(ctx, err, r.op, target)
 	}
-	defer httpResp.Body.Close()
+	defer func() { _ = httpResp.Body.Close() }()
 
 	limit := r.maxBytes
 	if limit <= 0 {
@@ -454,7 +454,7 @@ func readCapped(resp *http.Response, limit int64) (body []byte, truncated bool, 
 			return nil, false, wrapError(KindMalformed, "fetch", resp.Request.URL.Redacted(), gzErr,
 				"response claims gzip encoding but is not readable")
 		}
-		defer zr.Close()
+		defer func() { _ = zr.Close() }()
 		reader = zr
 	default:
 		return nil, false, newError(KindUnsupported, "fetch", resp.Request.URL.Redacted(),

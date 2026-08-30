@@ -145,7 +145,7 @@ func (t *ReadTool) Execute(ctx context.Context, call Call) (Result, error) {
 	if err != nil {
 		return Errorf(call, "cannot open %s: %v", rel, err), nil
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sniff := make([]byte, fsSniffBytes)
 	n, err := io.ReadFull(f, sniff)

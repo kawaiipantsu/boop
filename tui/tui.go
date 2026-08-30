@@ -97,7 +97,7 @@ func Run(ctx context.Context, opts Options) error {
 	if err != nil {
 		return err
 	}
-	defer application.Close()
+	defer func() { _ = application.Close() }()
 	approver.SetEvaluator(application.Evaluator)
 
 	sess, history, resumed, err := openSession(ctx, application, opts.ResumeSession)

@@ -10,8 +10,11 @@ import (
 
 func TestSemaphoreBounds(t *testing.T) {
 	s := newSemaphore(2)
-	if !s.tryAcquire() || !s.tryAcquire() {
-		t.Fatal("the first two acquisitions must succeed")
+	if !s.tryAcquire() {
+		t.Fatal("the first acquisition must succeed")
+	}
+	if !s.tryAcquire() {
+		t.Fatal("the second acquisition must succeed")
 	}
 	if s.tryAcquire() {
 		t.Fatal("tryAcquire() succeeded past the limit")

@@ -278,7 +278,7 @@ func (s *SQLiteStore) ListSessions(ctx context.Context, filter SessionFilter) ([
 	if err != nil {
 		return nil, fmt.Errorf("store: list sessions: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []SessionRecord
 	for rows.Next() {
@@ -395,7 +395,7 @@ func (s *SQLiteStore) ListMessages(ctx context.Context, q MessageQuery) ([]Messa
 	if err != nil {
 		return nil, fmt.Errorf("store: list messages: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	out, err := scanMessages(rows)
 	if err != nil {
@@ -449,7 +449,7 @@ func (s *SQLiteStore) SearchMessages(ctx context.Context, q SearchQuery) ([]Mess
 	if err != nil {
 		return nil, fmt.Errorf("store: search messages: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanMessages(rows)
 }
 
@@ -526,7 +526,7 @@ func (s *SQLiteStore) ListToolCalls(ctx context.Context, sessionID string) ([]To
 	if err != nil {
 		return nil, fmt.Errorf("store: list tool calls: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []ToolCallRecord
 	for rows.Next() {
@@ -607,7 +607,7 @@ func (s *SQLiteStore) ListExecutions(ctx context.Context, sessionID string) ([]E
 	if err != nil {
 		return nil, fmt.Errorf("store: list executions: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []ExecutionRecord
 	for rows.Next() {
@@ -710,7 +710,7 @@ func (s *SQLiteStore) ListAgents(ctx context.Context, sessionID string) ([]Agent
 	if err != nil {
 		return nil, fmt.Errorf("store: list agents: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []AgentRecord
 	for rows.Next() {
@@ -795,7 +795,7 @@ func (s *SQLiteStore) ListEvents(ctx context.Context, q EventQuery) ([]EventReco
 	if err != nil {
 		return nil, fmt.Errorf("store: list events: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var out []EventRecord
 	for rows.Next() {

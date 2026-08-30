@@ -41,7 +41,7 @@ func runWebUI(ctx context.Context, opts options, stdout, stderr io.Writer) error
 	if err != nil {
 		return err
 	}
-	defer application.Close()
+	defer func() { _ = application.Close() }()
 
 	server, err := web.New(web.Options{
 		App:               application,

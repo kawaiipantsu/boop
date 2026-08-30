@@ -153,8 +153,8 @@ func (e *LocalExecutor) run(ctx context.Context, req RunRequest, h StreamHandler
 	}
 	stderrR, stderrW, err := os.Pipe()
 	if err != nil {
-		stdoutR.Close()
-		stdoutW.Close()
+		_ = stdoutR.Close()
+		_ = stdoutW.Close()
 		return res, fmt.Errorf("execution: stderr pipe: %w", err)
 	}
 	cmd.Stdout = stdoutW
@@ -167,10 +167,10 @@ func (e *LocalExecutor) run(ctx context.Context, req RunRequest, h StreamHandler
 
 	start := time.Now()
 	if err := cmd.Start(); err != nil {
-		stdoutR.Close()
-		stdoutW.Close()
-		stderrR.Close()
-		stderrW.Close()
+		_ = stdoutR.Close()
+		_ = stdoutW.Close()
+		_ = stderrR.Close()
+		_ = stderrW.Close()
 		if pump != nil {
 			pump.close()
 		}
@@ -178,8 +178,8 @@ func (e *LocalExecutor) run(ctx context.Context, req RunRequest, h StreamHandler
 	}
 	// The child owns the write ends now; the parent's copies must go, or the
 	// readers below would never see EOF.
-	stdoutW.Close()
-	stderrW.Close()
+	_ = stdoutW.Close()
+	_ = stderrW.Close()
 
 	stdout := newBoundedCapture(pickOutputLimit(req.MaxOutputBytes, e.maxOutputBytes))
 	stderr := newBoundedCapture(pickOutputLimit(req.MaxOutputBytes, e.maxOutputBytes))
@@ -217,8 +217,8 @@ func (e *LocalExecutor) run(ctx context.Context, req RunRequest, h StreamHandler
 	res.Duration = time.Since(start)
 
 	e.drainReaders(cmd, readersDone, stdoutR, stderrR)
-	stdoutR.Close()
-	stderrR.Close()
+	_ = stdoutR.Close()
+	_ = stderrR.Close()
 
 	if pump != nil {
 		pump.close()
@@ -277,7 +277,7 @@ func (e *LocalExecutor) drainReaders(cmd *exec.Cmd, done <-chan struct{}, pipes 
 	}
 
 	for _, p := range pipes {
-		p.Close()
+		_ = p.Close()
 	}
 	<-done
 }

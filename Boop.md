@@ -130,5 +130,17 @@ Format:
   outstanding and waits on the synchronised config holder from issue #6 for
   the settings a live process cannot safely adopt.
 
+- 2026-08-30: CI `Lint` had been red repo-wide for ~a day: `golangci-lint-action@v6`
+  + `version: latest` installs golangci-lint v1.64.8 (built with Go 1.24), which
+  refuses to run against this Go 1.25 module. Bumped to `@v8` + pinned
+  `version: v2.13.2` and added `.golangci.yml` (`version: "2"`) that pins
+  staticcheck to `SA*`/`S1*` (the historical v1 set, no ST/QF churn), excludes
+  errcheck for `_test.go` and `tests/fixtures/`, and excludes `fmt.Fprint*`.
+  Cleared the ~40 real findings: `_ = x.Close()` / `_ = os.Remove(...)` at
+  ignore-on-purpose sites (repo idiom), `viewport.ViewUp/Down`→`PageUp/Down` and
+  `LineUp/Down`→`ScrollUp/Down` in `tui/keys.go`, a new `Approver.ResetTurnContext()`
+  replacing `SetTurnContext(nil)`, and a dead `inner :=` in
+  `permissions/classifications.go`. `golangci-lint run ./...` is clean.
+
 ## Session Summaries
 
