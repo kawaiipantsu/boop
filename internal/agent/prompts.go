@@ -18,6 +18,9 @@ var plannerPrompt string
 //go:embed prompts/worker.md
 var workerPrompt string
 
+//go:embed prompts/reviewer.md
+var reviewerPrompt string
+
 // planResponseContract is appended to the planner prompt.
 //
 // It lives here rather than in the prompt file because it is a wire format
@@ -60,3 +63,6 @@ func PlannerPrompt() string {
 
 // WorkerPrompt returns the system prompt given to a worker agent.
 func WorkerPrompt() string { return strings.TrimSpace(workerPrompt) }
+
+// ReviewerPrompt returns the system prompt given to a code reviewer agent.
+func ReviewerPrompt() string { return strings.TrimSpace(reviewerPrompt) }

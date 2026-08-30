@@ -14,6 +14,7 @@ func TestEmbeddedPromptsMatchTheCanonicalFiles(t *testing.T) {
 	for _, tc := range []struct{ canonical, embedded string }{
 		{"planner.md", "planner.md"},
 		{"agent.md", "worker.md"},
+		{"reviewer.md", "reviewer.md"},
 	} {
 		t.Run(tc.canonical, func(t *testing.T) {
 			want, err := os.ReadFile(filepath.Join("..", "..", "prompts", tc.canonical))

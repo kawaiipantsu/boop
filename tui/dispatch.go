@@ -75,6 +75,8 @@ func (m *Model) dispatch(cmd Command) tea.Cmd {
 		return m.runCmd(cmd)
 	case "test", "build":
 		return m.execTaskCmd(cmd)
+	case "review":
+		return m.reviewCmd(cmd)
 	case "files", "tree":
 		return m.listCmd(cmd)
 	case "search":

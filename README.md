@@ -273,11 +273,11 @@ boop version                  # ℹ️   build metadata
 
 ```
 /prep      🔎  inspect the project and write Boop.md
-/attach    📎  attach document/image   /context    📋  manage context
+/review    🧐  review code changes     /context    📋  manage context
+/attach    📎  attach document/image   /permissions 🔐  review policy
 /model     🧠  switch model          /provider   🔌  switch provider
-/agents    🤖  manage agents          /permissions 🔐  review policy
-/session   💾  save · load · list     /stats      📊  tokens and cost
-/web       🌐  toggle the WebUI
+/agents    🤖  manage agents          /session    💾  save · load · list
+/stats     📊  tokens and cost        /web        🌐  toggle the WebUI
 ```
 
 <br/>

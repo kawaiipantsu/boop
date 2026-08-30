@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/kawaiipantsu/boop/internal/agent"
 	"github.com/kawaiipantsu/boop/internal/permissions"
 	"github.com/kawaiipantsu/boop/internal/tools"
 )
@@ -39,6 +40,18 @@ func (m *Model) execTaskCmd(cmd Command) tea.Cmd {
 		args["command"] = line
 	}
 	return m.invokeTool(cmd.Name, args)
+}
+
+// reviewCmd implements /review [path] (§29).
+func (m *Model) reviewCmd(cmd Command) tea.Cmd {
+	target := strings.TrimSpace(cmd.Rest)
+	prompt := agent.ReviewerPrompt()
+	if target != "" {
+		prompt += fmt.Sprintf("\n\nPlease review the file or directory: %s", target)
+	} else {
+		prompt += "\n\nPlease review the recent changes and uncommitted modifications in this project."
+	}
+	return m.startTurn(prompt)
 }
 
 // listCmd implements /files (one directory) and /tree (recursive).

@@ -98,6 +98,7 @@ var commandSpecs = []commandSpec{
 	{Name: "run", Args: "<command>", Summary: "run a shell command through the run tool", Status: cmdReady},
 	{Name: "test", Args: "[command]", Summary: "run the project test suite through the test tool", Status: cmdReady},
 	{Name: "build", Args: "[command]", Summary: "build the project through the build tool", Status: cmdReady},
+	{Name: "review", Args: "[path]", Summary: "review code changes against reviewer guidelines (§29)", Status: cmdReady},
 
 	{Name: "files", Args: "[path]", Summary: "list one directory of the project", Status: cmdReady},
 	{Name: "tree", Args: "[path] [depth]", Summary: "list the project recursively", Status: cmdReady},
