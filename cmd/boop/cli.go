@@ -64,8 +64,8 @@ func runPlainCLI(ctx context.Context, opts options, stdout, stderr io.Writer) er
 	}
 
 	var memory string
-	if application.Memory != nil {
-		memory = string(application.Memory.Render())
+	if m := application.Memory(); m != nil {
+		memory = string(m.Render())
 	}
 	system := app.PromptContext{
 		OS: runtime.GOOS, Arch: runtime.GOARCH, Shell: os.Getenv("SHELL"),

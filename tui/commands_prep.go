@@ -42,6 +42,7 @@ func (m *Model) prepCmd(cmd Command) tea.Cmd {
 	m.say(EntrySystem, "surveying "+root+"…")
 
 	ctx := m.ctx
+	application := m.app
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(ctx, prepTimeout)
 		defer cancel()
@@ -49,7 +50,15 @@ func (m *Model) prepCmd(cmd Command) tea.Cmd {
 		if err != nil {
 			return infoMsg{entries: []Entry{{Kind: EntryError, Text: "prep failed: " + err.Error()}}}
 		}
-		return infoMsg{entries: []Entry{{Kind: EntrySystem, Text: formatPrepReport(report)}}}
+		// Prep just rewrote Boop.md; swap it into the running runtime so the
+		// next turn's system prompt carries it (ReloadMemory is goroutine-safe
+		// by design). A reload failure is worth a line but not worth losing the
+		// survey over.
+		reloadNote := ""
+		if rerr := application.ReloadMemory(); rerr != nil {
+			reloadNote = "\n(could not reload Boop.md into the running session: " + rerr.Error() + ")"
+		}
+		return infoMsg{entries: []Entry{{Kind: EntrySystem, Text: formatPrepReport(report) + reloadNote}}}
 	}
 }
 
@@ -120,7 +129,7 @@ func formatPrepReport(r *project.Report) string {
 	for _, w := range r.Warnings {
 		fmt.Fprintf(&b, "warning: %s\n", w)
 	}
-	b.WriteString("\nBoop.md is read into the system prompt at startup, so restart Boop to send the refreshed memory to the model.")
+	b.WriteString("\nThe refreshed Boop.md is now in the system prompt; the model picks it up on your next message.")
 	return b.String()
 }
 

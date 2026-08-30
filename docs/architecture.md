@@ -267,7 +267,9 @@ They are deliberately separate and must not be collapsed into each other.
 - **`Boop.md`** (`internal/project`) — human-readable, compressed durable
   project knowledge with a fixed section layout (§16). `/prep` writes only the
   blocks it owns, so hand-written prose survives a re-run. Raw transcripts
-  never go here.
+  never go here. The runtime holds it behind `App.Memory()` as an atomically
+  swapped snapshot; `App.ReloadMemory()` re-reads it after a `/prep` so the
+  change reaches the model on the next turn without a restart.
 - **SQLite `boop.db`** (`internal/store`, `internal/session`) — machine state:
   session headers, messages, tool calls, executions, agent metadata, events,
   token usage. Everything is behind a `Store` interface; the driver is
@@ -298,6 +300,8 @@ works today. The TUI and WebUI will call the same `Loop`.
    environment to the embedded prompt: OS/arch, shell, working directory,
    provider and model, execution mode, the actual tool names registered, and
    whether outbound web access is on. `Boop.md` is appended whole if present.
+   The TUI rebuilds this message every turn, so a `/prep` or a config change
+   mid-session takes effect on the next message.
 
 4. **Run the turn.** `Loop.Run(ctx, history)` iterates up to
    `execution.max_tool_iterations` times:

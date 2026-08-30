@@ -132,6 +132,15 @@ func (m *Model) contextText() string {
 // is accepted — is built inside app.Loop.prompt, which the TUI cannot reach.
 func (m *Model) requestHistory() []provider.Message {
 	history := append([]provider.Message(nil), m.history...)
+
+	// Rebuild the system message from the live runtime each turn so a mid-session
+	// `/prep`, `/config` change or memory edit reaches the model on the next
+	// message rather than only after a restart (issue #7). The stored transcript
+	// keeps the original system message; this copy is request-only.
+	if m.app != nil && len(history) > 0 && history[0].Role == provider.RoleSystem {
+		history[0].Content = buildSystemPrompt(m.app)
+	}
+
 	block := selectionMessage(m.selection)
 	if block == "" {
 		return history

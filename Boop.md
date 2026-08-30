@@ -72,6 +72,12 @@ Changes to these files can affect production; treat them with deliberate intent.
 - `provider.EmbeddingProvider` is kept though unused: the decision (issue #27) is
   that semantic project search is the intended adopter and the interface stays
   until then rather than being removed.
+- Project memory lives behind `App.Memory()` (an `atomic.Pointer[project.Memory]`
+  snapshot) with `App.ReloadMemory()`. `app.New` must pass `project.LoadOrCreate`
+  the workspace *root*, not `<root>/Boop.md` — the file-path form silently
+  returned an empty document. `/prep` in the TUI and `POST /api/project/prep`
+  call `ReloadMemory`; the TUI also rebuilds `history[0]` each turn so config
+  and memory changes take effect without a restart (#7).
 - The `lint` and `format` tools extend the `execTaskKind` framework in
   `internal/tools/test.go` rather than reusing `internal/project`'s heavier
   project scan — detection stays targeted and deterministic like `test`/`build`.

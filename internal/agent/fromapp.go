@@ -27,7 +27,7 @@ func NewFromApp(a *app.App, sessionID string) *Coordinator {
 		}},
 		Scope: &Scope{
 			Environment: a.Workspace.Root(),
-			Memory:      ProjectMemory(a.Memory),
+			Memory:      ProjectMemory(a.Memory()),
 		},
 		Bus:       a.Bus,
 		SessionID: sessionID,

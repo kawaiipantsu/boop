@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/kawaiipantsu/boop/internal/config"
 	"github.com/kawaiipantsu/boop/internal/execution"
@@ -62,7 +62,6 @@ type App struct {
 	Sessions  *session.Manager
 	Workspace *tools.Workspace
 	Web       *webclient.Client
-	Memory    *project.Memory
 	// Stats aggregates token, cost and tool usage for /stats and the WebUI.
 	//
 	// The agent coordinator is deliberately not held here: internal/agent
@@ -78,6 +77,37 @@ type App struct {
 
 	store        store.Store
 	systemPrompt string
+
+	// memory holds project memory (Boop.md). It is replaced wholesale by
+	// ReloadMemory rather than mutated in place, so the tool loop and the
+	// prompt builders can read a consistent snapshot from many goroutines
+	// without a lock, and a `/prep` in one frontend reaches the model in the
+	// next turn instead of only after a restart (§64.5, issue #7).
+	memory     atomic.Pointer[project.Memory]
+	memoryRoot string
+}
+
+// Memory returns the current project-memory snapshot, or nil if none is
+// loaded. Callers must treat the returned value as read-only: it may be shared
+// with an in-flight turn, and the next ReloadMemory swaps in a fresh one rather
+// than editing this.
+func (a *App) Memory() *project.Memory { return a.memory.Load() }
+
+// ReloadMemory re-reads Boop.md from the workspace root and swaps it in.
+//
+// It is safe to call while turns are running: a reader that already took a
+// snapshot keeps using it, and the following turn picks up the new one. A read
+// failure leaves the current memory in place and is returned.
+func (a *App) ReloadMemory() error {
+	if a.memoryRoot == "" {
+		return errors.New("app: no workspace root for project memory")
+	}
+	mem, err := project.LoadOrCreate(a.memoryRoot)
+	if err != nil {
+		return err
+	}
+	a.memory.Store(mem)
+	return nil
 }
 
 // New assembles a runtime from configuration.
@@ -178,9 +208,12 @@ func New(ctx context.Context, opts Options) (*App, error) {
 	}
 
 	// Project memory is best-effort: a project without a Boop.md is normal,
-	// and failing to read one must not stop Boop starting.
-	if mem, err := project.LoadOrCreate(filepath.Join(ws.Root(), "Boop.md")); err == nil {
-		app.Memory = mem
+	// and failing to read one must not stop Boop starting. LoadOrCreate takes
+	// the directory to look in, not the file — passing the file path made it
+	// miss an existing Boop.md and hand back an empty document every time.
+	app.memoryRoot = ws.Root()
+	if mem, err := project.LoadOrCreate(ws.Root()); err == nil {
+		app.memory.Store(mem)
 	}
 	return app, nil
 }

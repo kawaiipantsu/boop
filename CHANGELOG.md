@@ -30,6 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (gated as `filesystem.read`; a rewrite is `filesystem.write`). TUI slash
   commands `/lint` and `/format [--check]` come with them.
 
+### Fixed
+
+- Project memory (`Boop.md`) now actually reaches the model, and reaches it
+  again after a `/prep` without a restart (#7). `app.New` was passing
+  `LoadOrCreate` a file path where it wanted a directory, so the TUI and CLI
+  always ran on an empty in-memory document. `App.Memory()` is now an
+  atomically-swapped snapshot with `App.ReloadMemory()`; the TUI rebuilds its
+  system message every turn, and `/prep` (terminal and `POST /api/project/prep`)
+  reloads the file into the running runtime.
+
 ### Changed
 
 - `provider.EmbeddingProvider` documents that it is implemented and verified but
