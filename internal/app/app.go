@@ -263,6 +263,43 @@ func (a *App) ReloadMemory() (*project.Memory, error) {
 	return mem, nil
 }
 
+// ApplyConfig safely swaps the running configuration and updates runtime components (§6).
+// It reports whether any changes require a process restart (e.g. web/logging bind changes).
+func (a *App) ApplyConfig(newCfg *config.Config) (restartRequired bool, err error) {
+	if a == nil {
+		return false, errors.New("app: runtime is nil")
+	}
+	if _, err := newCfg.Validate(); err != nil {
+		return false, fmt.Errorf("configuration is invalid: %w", err)
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	old := a.Config
+	if old != nil {
+		if old.Web.Listen != newCfg.Web.Listen ||
+			old.Web.Port != newCfg.Web.Port ||
+			old.Web.Enabled != newCfg.Web.Enabled ||
+			old.Logging.File != newCfg.Logging.File {
+			restartRequired = true
+		}
+	}
+
+	// Rebuild evaluator with updated policy
+	a.Evaluator = permissions.NewEvaluator(newCfg.Policy())
+
+	// Rebuild router if providers or model configs changed
+	httpClient := defaultHTTPClient()
+	if router, warnings, err := BuildRouter(newCfg, httpClient); err == nil {
+		a.Router = router
+		a.Warnings = warnings
+	}
+
+	a.Config = newCfg
+	return restartRequired, nil
+}
+
 // Context budget defaults, used when the model's real window is unknown.
 const (
 	// defaultContextBudget is deliberately modest: many local servers serve a

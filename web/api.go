@@ -279,26 +279,26 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getConfig(w http.ResponseWriter) {
-	warnings, _ := s.cfg.Validate()
 	s.mu.Lock()
+	cfg := s.cfg
+	if s.app != nil && s.app.Config != nil {
+		cfg = s.app.Config
+	}
 	restart := s.restart
 	s.mu.Unlock()
+
+	warnings, _ := cfg.Validate()
 	path, _ := config.ConfigFile()
 	writeJSON(w, http.StatusOK, configResponse{
-		Config:          redactConfig(s.cfg),
-		Secrets:         s.secretRefs(s.cfg),
+		Config:          redactConfig(cfg),
+		Secrets:         s.secretRefs(cfg),
 		Path:            path,
 		Warnings:        warnings,
 		RestartRequired: restart,
 	})
 }
 
-// putConfig validates and persists a replacement configuration.
-//
-// The running process is not mutated. The runtime reads *config.Config from
-// many goroutines without synchronisation, so rewriting it underneath them
-// would be a data race, and a half-applied configuration is worse than one
-// that takes effect on restart. The response says so explicitly.
+// putConfig validates, applies live, and persists a replacement configuration (§6).
 func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 	var req configRequest
 	if !decodeBody(w, r, &req) {
@@ -318,6 +318,23 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	restartRequired := false
+	if s.app != nil {
+		var applyErr error
+		restartRequired, applyErr = s.app.ApplyConfig(incoming)
+		if applyErr != nil {
+			writeError(w, http.StatusInternalServerError, codeInternal, "the configuration could not be applied: "+applyErr.Error())
+			return
+		}
+	} else if s.cfg != nil {
+		if s.cfg.Web.Listen != incoming.Web.Listen ||
+			s.cfg.Web.Port != incoming.Web.Port ||
+			s.cfg.Web.Enabled != incoming.Web.Enabled ||
+			s.cfg.Logging.File != incoming.Logging.File {
+			restartRequired = true
+		}
+	}
+
 	persist := true
 	if req.Persist != nil {
 		persist = *req.Persist
@@ -327,10 +344,12 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, codeInternal, "the configuration is valid but could not be saved: "+err.Error())
 			return
 		}
-		s.mu.Lock()
-		s.restart = true
-		s.mu.Unlock()
 	}
+
+	s.mu.Lock()
+	s.cfg = incoming
+	s.restart = restartRequired
+	s.mu.Unlock()
 
 	path, _ := config.ConfigFile()
 	writeJSON(w, http.StatusOK, configResponse{
@@ -338,7 +357,7 @@ func (s *Server) putConfig(w http.ResponseWriter, r *http.Request) {
 		Secrets:         s.secretRefs(incoming),
 		Path:            path,
 		Warnings:        warnings,
-		RestartRequired: persist,
+		RestartRequired: restartRequired,
 	})
 }
 

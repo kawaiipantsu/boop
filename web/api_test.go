@@ -269,6 +269,34 @@ func TestPutConfigKeepsRedactedHeaders(t *testing.T) {
 	}
 }
 
+func TestPutConfigAppliesLiveWithoutRestart(t *testing.T) {
+	app := newTestApp(t)
+	srv := newTestServer(t, func(o *Options) {
+		o.App = app
+		o.Config = app.Config
+		o.SaveConfig = func(c *config.Config) error { return nil }
+	})
+
+	incoming := *app.Config
+	incoming.Execution.Mode = permissions.ModeAuto
+
+	rec, body := doJSON(t, srv, http.MethodPut, "/api/config", configRequest{Config: &incoming})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body %s)", rec.Code, body)
+	}
+
+	var resp configResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.RestartRequired {
+		t.Error("RestartRequired = true for execution.mode change, want false")
+	}
+	if app.Config.Execution.Mode != permissions.ModeAuto {
+		t.Errorf("app.Config.Execution.Mode = %q, want 'auto'", app.Config.Execution.Mode)
+	}
+}
+
 // TestStatus checks the §54 document, including that it never carries a token.
 func TestStatus(t *testing.T) {
 	srv := newTestServer(t, func(o *Options) {
