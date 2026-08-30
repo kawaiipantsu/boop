@@ -456,7 +456,7 @@ func (s *Server) createAgent(w http.ResponseWriter, r *http.Request) {
 			"agents are disabled; set agents.enabled in the configuration")
 		return
 	}
-	if err := checkAgentSelection(req, s.cfg.Provider, s.cfg.Model); err != nil {
+	if err := checkAgentSelection(req, s); err != nil {
 		writeError(w, http.StatusBadRequest, codeBadRequest, err.Error())
 		return
 	}
@@ -487,6 +487,8 @@ func (s *Server) createAgent(w http.ResponseWriter, r *http.Request) {
 		objective: objective,
 		taskName:  strings.TrimSpace(req.Name),
 		parentID:  strings.TrimSpace(req.ParentID),
+		provider:  strings.TrimSpace(req.Provider),
+		model:     strings.TrimSpace(req.Model),
 		plan:      plan,
 		timeout:   timeout,
 	})
@@ -500,16 +502,13 @@ func (s *Server) createAgent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// checkAgentSelection refuses a per-agent provider or model the coordinator
-// cannot honour. See agentRequest for why this is refused rather than ignored.
-func checkAgentSelection(req agentRequest, wantProvider, wantModel string) error {
-	if p := strings.TrimSpace(req.Provider); p != "" && p != wantProvider {
-		return fmt.Errorf("agents inherit the session's provider (%s); "+
-			"change the provider first rather than passing one per agent", wantProvider)
-	}
-	if m := strings.TrimSpace(req.Model); m != "" && m != wantModel {
-		return fmt.Errorf("agents inherit the session's model (%s); "+
-			"change the model first rather than passing one per agent", wantModel)
+// checkAgentSelection validates a requested per-agent provider or model.
+func checkAgentSelection(req agentRequest, s *Server) error {
+	p := strings.TrimSpace(req.Provider)
+	if p != "" && s.cfg != nil && s.cfg.Providers != nil {
+		if _, ok := s.cfg.Providers[p]; !ok && p != s.cfg.Provider {
+			return fmt.Errorf("unknown provider %q", p)
+		}
 	}
 	return nil
 }
@@ -539,6 +538,8 @@ type agentRunSpec struct {
 	objective string
 	taskName  string
 	parentID  string
+	provider  string
+	model     string
 	plan      bool
 	timeout   time.Duration
 }
@@ -594,8 +595,13 @@ func (s *Server) execAgentRun(ctx context.Context, coord *agent.Coordinator, spe
 	}
 	return coord.Run(ctx, agent.PlanRequest{
 		Objective: spec.objective,
-		Tasks:     []agent.Task{{ID: id, Description: spec.objective}},
-		ParentID:  spec.parentID,
+		Tasks: []agent.Task{{
+			ID:          id,
+			Description: spec.objective,
+			Provider:    spec.provider,
+			Model:       spec.model,
+		}},
+		ParentID: spec.parentID,
 	})
 }
 

@@ -65,6 +65,12 @@ type Task struct {
 	Requirements []string `json:"requirements,omitempty"`
 	// Validation states how the task's completion is checked.
 	Validation string `json:"validation,omitempty"`
+	// Provider optionally selects an alternative provider for this task (§8).
+	Provider string `json:"provider,omitempty"`
+	// Model optionally selects an alternative model for this task (§8).
+	Model string `json:"model,omitempty"`
+	// RouteClass optionally selects a routing class (§9) for this task.
+	RouteClass string `json:"route_class,omitempty"`
 }
 
 // writePaths returns the task's normalised write set, dropping empties.

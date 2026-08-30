@@ -668,6 +668,8 @@ func (c *Coordinator) executeTask(ctx context.Context, task Task) (TaskOutcome, 
 		Name:     taskName(task),
 		Task:     task.Description,
 		ParentID: rc.parentID,
+		Provider: task.Provider,
+		Model:    task.Model,
 	}, StatusWorking, cancel)
 	if err != nil {
 		// Depth, budget and disabled all land here as ordinary task failures:

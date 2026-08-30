@@ -721,3 +721,32 @@ func TestCoordinatorRetainsBoundedHistory(t *testing.T) {
 		t.Errorf("List() has %d agents, want the retention bound of 5", got)
 	}
 }
+
+func TestCoordinatorForwardsTaskProviderAndModel(t *testing.T) {
+	runner := newStubRunner()
+	c, _ := newTestCoordinator(t, runner)
+
+	report, err := c.Run(context.Background(), PlanRequest{
+		Objective: "custom model task",
+		Tasks: []Task{
+			{
+				ID:          "t1",
+				Description: "run on fast model",
+				Provider:    "ollama",
+				Model:       "llama3.2:1b",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(report.Agents) != 1 {
+		t.Fatalf("Agents count = %d, want 1", len(report.Agents))
+	}
+	if report.Agents[0].Provider != "ollama" {
+		t.Errorf("Agent Provider = %q, want 'ollama'", report.Agents[0].Provider)
+	}
+	if report.Agents[0].Model != "llama3.2:1b" {
+		t.Errorf("Agent Model = %q, want 'llama3.2:1b'", report.Agents[0].Model)
+	}
+}
