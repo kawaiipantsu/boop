@@ -44,6 +44,7 @@ var BuiltinToolNames = map[string]bool{
 	"read":        true,
 	"write":       true,
 	"edit":        true,
+	"multi_edit":  true,
 	"apply_patch": true,
 	"list":        true,
 	"find":      true,
