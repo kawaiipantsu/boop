@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/kawaiipantsu/boop/internal/config"
 	"github.com/kawaiipantsu/boop/internal/execution"
@@ -76,6 +76,7 @@ type App struct {
 	// explain why a provider is missing without failing startup over it.
 	Warnings []string
 
+	mu           sync.RWMutex
 	store        store.Store
 	systemPrompt string
 }
@@ -179,7 +180,7 @@ func New(ctx context.Context, opts Options) (*App, error) {
 
 	// Project memory is best-effort: a project without a Boop.md is normal,
 	// and failing to read one must not stop Boop starting.
-	if mem, err := project.LoadOrCreate(filepath.Join(ws.Root(), "Boop.md")); err == nil {
+	if mem, err := project.LoadOrCreate(ws.Root()); err == nil {
 		app.Memory = mem
 	}
 	return app, nil
@@ -225,6 +226,42 @@ func (a *App) newContextManager() *session.ContextManager {
 
 // SystemPrompt returns the prompt prefixed to every conversation.
 func (a *App) SystemPrompt() string { return a.systemPrompt }
+
+// GetMemory returns the active project memory safely under lock (§7).
+func (a *App) GetMemory() *project.Memory {
+	if a == nil {
+		return nil
+	}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.Memory
+}
+
+// SetMemory safely updates the in-process project memory (§7).
+func (a *App) SetMemory(mem *project.Memory) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	a.Memory = mem
+	a.mu.Unlock()
+}
+
+// ReloadMemory re-reads Boop.md from the workspace root and safely updates App.Memory (§7).
+func (a *App) ReloadMemory() (*project.Memory, error) {
+	if a == nil {
+		return nil, errors.New("app: runtime is nil")
+	}
+	if a.Workspace == nil {
+		return nil, errors.New("app: workspace is not initialized")
+	}
+	mem, err := project.LoadOrCreate(a.Workspace.Root())
+	if err != nil {
+		return nil, err
+	}
+	a.SetMemory(mem)
+	return mem, nil
+}
 
 // Context budget defaults, used when the model's real window is unknown.
 const (

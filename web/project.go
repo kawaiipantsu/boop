@@ -211,6 +211,9 @@ func (s *Server) runPrep(w http.ResponseWriter, r *http.Request) {
 	}
 	// Prep rescanned the tree, so the cache is both stale and replaceable.
 	s.storeProjectInfo(report.Info)
+	if s.app != nil {
+		_, _ = s.app.ReloadMemory()
+	}
 
 	writeJSON(w, http.StatusOK, prepResponse{
 		Project:       projectViewOf(report.Info),

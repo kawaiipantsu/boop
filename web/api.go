@@ -1297,8 +1297,10 @@ func (s *Server) publishTurnError(sessionID string, err error) {
 // the plain CLI sends so the two frontends behave identically (§2.3).
 func (s *Server) systemPrompt(providerName, model string) string {
 	var memory string
-	if s.app.Memory != nil {
-		memory = string(s.app.Memory.Render())
+	if s.app != nil {
+		if mem := s.app.GetMemory(); mem != nil {
+			memory = string(mem.Render())
+		}
 	}
 	root := ""
 	if s.app.Workspace != nil {

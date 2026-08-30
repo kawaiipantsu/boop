@@ -187,8 +187,10 @@ func openSession(ctx context.Context, application *app.App, resumeID string) (*s
 // buildSystemPrompt assembles the prompt with this machine's context (§29).
 func buildSystemPrompt(application *app.App) string {
 	var memory string
-	if application.Memory != nil {
-		memory = string(application.Memory.Render())
+	if application != nil {
+		if mem := application.GetMemory(); mem != nil {
+			memory = string(mem.Render())
+		}
 	}
 	return app.PromptContext{
 		OS:          runtime.GOOS,

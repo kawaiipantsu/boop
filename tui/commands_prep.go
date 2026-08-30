@@ -49,6 +49,9 @@ func (m *Model) prepCmd(cmd Command) tea.Cmd {
 		if err != nil {
 			return infoMsg{entries: []Entry{{Kind: EntryError, Text: "prep failed: " + err.Error()}}}
 		}
+		if m.app != nil {
+			_, _ = m.app.ReloadMemory()
+		}
 		return infoMsg{entries: []Entry{{Kind: EntrySystem, Text: formatPrepReport(report)}}}
 	}
 }
@@ -120,7 +123,7 @@ func formatPrepReport(r *project.Report) string {
 	for _, w := range r.Warnings {
 		fmt.Fprintf(&b, "warning: %s\n", w)
 	}
-	b.WriteString("\nBoop.md is read into the system prompt at startup, so restart Boop to send the refreshed memory to the model.")
+	b.WriteString("\nBoop.md has been reloaded into project memory and is immediately available for subsequent turns.")
 	return b.String()
 }
 
