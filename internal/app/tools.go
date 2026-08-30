@@ -50,6 +50,7 @@ func BuildTools(cfg *config.Config, deps ToolDeps) (*tools.Registry, error) {
 	// model can consume. read deliberately still refuses a binary, so this is
 	// the entry point for anything that is not plain text.
 	reg.Register(tools.NewAttachTool(deps.Workspace))
+	reg.Register(tools.NewSymbolsTool(deps.Workspace))
 
 	// Command execution.
 	run := tools.NewRunTool(deps.Executor, deps.Workspace)
